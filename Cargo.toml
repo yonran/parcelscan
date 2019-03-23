@@ -1,0 +1,21 @@
+[package]
+name = "parcelscan"
+version = "0.1.0"
+authors = ["Yonathan Randolph <yonathan@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+clap = "2.32.0"
+csv = "1.0.5"
+log = "0.4.6"
+env_logger = "0.6.0"
+geo = "0.12.0"
+serde = "1.0.89"
+serde_derive = "1.0.89"
+wkt = "0.5.0"
+num-traits = "0.2.6"
+
+# requires proj4 library; brew install proj
+proj = "0.7.0"
+geo-types = "0.2.2" # to match the version from proj
+rstar = "0.2"  # to match the version from geo, though it doesn't need to match
