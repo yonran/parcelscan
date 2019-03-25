@@ -195,7 +195,8 @@ fn expansions(
             + 0.0;
         let approx_net_bldg_area = approx_new_bldg_area - approx_old_bldg_area;
         let is_building_expansion = approx_net_bldg_area > 0.0;
-        if !is_building_expansion {
+        let is_demolition = record.demolition == "CHECKED";
+        if !is_building_expansion && !is_demolition {
             continue;
         }
         let shape: MultiPolygon<f64> = parse_wkt_to_multipolygon(&record.the_geom)?;
@@ -221,11 +222,20 @@ fn expansions(
             .sum::<f64>()
             / neighbors.len() as f64;
 
-        if far > neighbors_mean_far && approx_net_bldg_area > 360.0 {
-            info!("Prohibited: {} address: {}, far {:.02}, neighbor far: {:.02} ({} neighbors), bldg growth {:.}sqft", &record.date_opened[0..10], record.address, far, neighbors_mean_far, neighbors.len(), approx_net_bldg_area);
+        let major_expansion_threshold_pct = if record.prj_feature_stories_net.unwrap_or(0.0) >= 1.0 {
+            10.0
+        } else {
+            20.0
+        };
+        let building_expand_pct = approx_net_bldg_area / approx_old_bldg_area *100.0;
+        let is_major_expansion = building_expand_pct >= major_expansion_threshold_pct;
+        if far > neighbors_mean_far && approx_net_bldg_area > 360.0 && (is_major_expansion || is_demolition)  {
+            info!("Prohibited: {} address: {}, far {:.02}, neighbor far: {:.02} ({} neighbors), bldg growth {:.0}sqft ({:.0}%)",
+                  &record.date_opened[0..10], record.address, far, neighbors_mean_far, neighbors.len(), approx_net_bldg_area, building_expand_pct);
             num_prohibited_expansions += 1;
         } else {
-            info!("Probably OK: {} address: {}, far {:.02}, neighbor far: {:.02} ({} neighbors), bldg growth {:.}sqft", &record.date_opened[0..10], record.address, far, neighbors_mean_far, neighbors.len(), approx_net_bldg_area);
+            info!("Probably OK: {} address: {}, far {:.02}, neighbor far: {:.02} ({} neighbors), bldg growth {:.0}sqft ({:.0}%)",
+                  &record.date_opened[0..10], record.address, far, neighbors_mean_far, neighbors.len(), approx_net_bldg_area, building_expand_pct);
             num_ok_expansions += 1;
         }
     }

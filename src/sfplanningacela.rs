@@ -347,15 +347,15 @@ pub struct PPTSRecord {
 
     /// Project Features - Building Number - Net
     #[serde(rename = "PRJ_FEATURE_BUILD_NET")]
-    pub prj_feature_build_net: String,
+    pub prj_feature_build_net: Option<f64>,
 
     /// Project Features - Stories Number - Existing
     #[serde(rename = "PRJ_FEATURE_STORIES_PROP")]
-    pub prj_feature_stories_prop: String,
+    pub prj_feature_stories_prop: Option<f64>,
 
     /// Project Features - Stories Number - Proposed
     #[serde(rename = "PRJ_FEATURE_STORIES_NET")]
-    pub prj_feature_stories_net: String,
+    pub prj_feature_stories_net: Option<f64>,
 
     /// Project Features - Stories Number - Net
     #[serde(rename = "PRJ_FEATURE_PARKING_EXIST")]

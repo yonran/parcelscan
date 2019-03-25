@@ -70,8 +70,9 @@ of Aaron Peskin’s demolition, mergers, and expansion prohibitions
 
 Methodology: The Peskin prohibited projects that this program can detect are those that expanded the residential area,
 the project building’s FAR was greater than the neighborhood FAR,
-and the size of the expansion was greater than 360 sq. ft.
-(the limit for “limited horizontal expansions” on a typical 25 ft. lot).
+the size of the expansion was greater than 360 sq. ft.
+(the limit for “limited horizontal expansions” on a typical 25 ft. lot),
+and the project is a “major expansion” (building grows ≥20%) or demolition.
 The neighborhood FAR is calculated by looking at parcels whose centroid is within 300 ft. of the centroid of the project parcel,
 and dividing the `BLDGSQFT` by `SHAPE_Area` in the `LandUse` file.
 The project building FAR is calculated by summing all the `LAND_USE_*_PROP` columns
@@ -87,7 +88,6 @@ or expansions in which any unit is greater than 1200 sq. ft.).
 It also requires Conditional Use Authorization for more projects
 (e.g. replacement of 25% of internal walls).
 So this program identifies only a fraction of the projects that are affected by the bill.
-
 
 Files needed:
 
@@ -105,12 +105,12 @@ RUST_LOG=peskinexpansionsimpact=info target/release/peskinexpansionsimpact --pla
 Sample output:
 ```
 …
-[2019-03-25T09:45:26Z INFO  peskinexpansionsimpact] Prohibited: 12/06/2017 address: 1552 35TH AVE 94122, far 1.02, neighbor far: 0.65 (58 neighbors), bldg growth 810sqft
-[2019-03-25T09:45:26Z INFO  peskinexpansionsimpact] Prohibited: 05/13/2016 address: 3930 FOLSOM ST 94110, far 1.21, neighbor far: 0.65 (62 neighbors), bldg growth 325sqft
-[2019-03-25T09:45:26Z INFO  peskinexpansionsimpact] Probably OK: 04/07/2017 address: 30 KRONQUIST CT 94131, far 1.13, neighbor far: 0.72 (45 neighbors), bldg growth 187sqft
-[2019-03-25T09:45:26Z INFO  peskinexpansionsimpact] Probably OK: 10/11/2016 address: 1983 JEFFERSON ST 94123, far 0.86, neighbor far: 1.22 (46 neighbors), bldg growth 478sqft
-[2019-03-25T09:45:26Z INFO  peskinexpansionsimpact] Probably OK: 01/10/2018 address: 1478 06TH AVE 94122, far 0.63, neighbor far: 0.81 (54 neighbors), bldg growth 190sqft
-[2019-03-25T09:45:26Z INFO  peskinexpansionsimpact] ok expansions: 545; prohibited expansions: 1225 (69%)
+[2019-03-25T11:26:29Z INFO  peskinexpansionsimpact] Prohibited: 12/06/2017 address: 1552 35TH AVE 94122, far 1.02, neighbor far: 0.65 (58 neighbors), bldg growth 810sqft (32%)
+[2019-03-25T11:26:29Z INFO  peskinexpansionsimpact] Probably OK: 05/13/2016 address: 3930 FOLSOM ST 94110, far 1.21, neighbor far: 0.65 (62 neighbors), bldg growth 325sqft (18%)
+[2019-03-25T11:26:29Z INFO  peskinexpansionsimpact] Probably OK: 04/07/2017 address: 30 KRONQUIST CT 94131, far 1.13, neighbor far: 0.72 (45 neighbors), bldg growth 187sqft (7%)
+[2019-03-25T11:26:29Z INFO  peskinexpansionsimpact] Probably OK: 10/11/2016 address: 1983 JEFFERSON ST 94123, far 0.86, neighbor far: 1.22 (46 neighbors), bldg growth 478sqft (25%)
+[2019-03-25T11:26:29Z INFO  peskinexpansionsimpact] Probably OK: 01/10/2018 address: 1478 06TH AVE 94122, far 0.63, neighbor far: 0.81 (54 neighbors), bldg growth 190sqft (11%)
+[2019-03-25T11:26:29Z INFO  peskinexpansionsimpact] ok expansions: 836; prohibited expansions: 935 (52%)
 ```
 
 For full output see [this gist](https://gist.github.com/yonran/445a1d6c8fcbcf9fd81f954f831e6fff)
