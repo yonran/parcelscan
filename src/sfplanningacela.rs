@@ -303,15 +303,15 @@ pub struct PPTSRecord {
 
     /// Project Features - Dwelling Units-Affordable - Existing Unit(s)
     #[serde(rename = "PRJ_FEATURE_AFFORDABLE_EXIST")]
-    pub prj_feature_affordable_exist: String,
+    pub prj_feature_affordable_exist: Option<f64>,
 
     /// Project Features - Dwelling Units-Affordable - Proposed Unit(s)
     #[serde(rename = "PRJ_FEATURE_AFFORDABLE_PROP")]
-    pub prj_feature_affordable_prop: String,
+    pub prj_feature_affordable_prop: Option<f64>,
 
     /// Project Features - Dwelling Units-Affordable - Net Unit(s)
     #[serde(rename = "PRJ_FEATURE_AFFORDABLE_NET")]
-    pub prj_feature_affordable_net: String,
+    pub prj_feature_affordable_net: Option<f64>,
 
     /// Project Features - Hotel Rooms - Existing
     #[serde(rename = "PRJ_FEATURE_HOTEL_ROOMS_EXIST")]
@@ -327,15 +327,15 @@ pub struct PPTSRecord {
 
     /// Project Features - Dwelling Units-Market Rate - Existing Unit(s)
     #[serde(rename = "PRJ_FEATURE_MARKET_RATE_EXIST")]
-    pub prj_feature_market_rate_exist: String,
+    pub prj_feature_market_rate_exist: Option<f64>,
 
     /// Project Features - Dwelling Units-Market Rate - Proposed Unit(s)
     #[serde(rename = "PRJ_FEATURE_MARKET_RATE_PROP")]
-    pub prj_feature_market_rate_prop: String,
+    pub prj_feature_market_rate_prop: Option<f64>,
 
     /// Project Features - Dwelling Units-Market Rate - Net Unit(s)
     #[serde(rename = "PRJ_FEATURE_MARKET_RATE_NET")]
-    pub prj_feature_market_rate_net: String,
+    pub prj_feature_market_rate_net: Option<f64>,
 
     /// Project Features - Building Number - Existing
     #[serde(rename = "PRJ_FEATURE_BUILD_EXIST")]

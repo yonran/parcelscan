@@ -166,6 +166,10 @@ fn expansions(
     info!("Scanning PPTS records of applications");
     let mut num_prohibited_expansions = 0;
     let mut num_ok_expansions = 0;
+    let mut num_prohibited_units = 0;
+    let mut num_ok_units = 0;
+    let mut num_prohibited_aff_units = 0;
+    let mut num_ok_aff_units = 0;
     for result in planning_rdr.deserialize::<PPTSRecord>() {
         // The iterator yields Result<StringRecord, Error>, so we check the
         // error here.
@@ -222,21 +226,41 @@ fn expansions(
             .sum::<f64>()
             / neighbors.len() as f64;
 
-        let major_expansion_threshold_pct = if record.prj_feature_stories_net.unwrap_or(0.0) >= 1.0 {
+        let market_rate_units_exist = record.prj_feature_market_rate_exist.unwrap_or(0.0) as i64;
+        let affordable_units_exist = record.prj_feature_affordable_exist.unwrap_or(0.0) as i64;
+        let market_rate_units_prop = record.prj_feature_market_rate_prop.unwrap_or(0.0) as i64;
+        let affordable_units_prop = record.prj_feature_affordable_prop.unwrap_or(0.0) as i64;
+        let num_aff_units_change = affordable_units_prop - affordable_units_exist;
+        let num_units_change =
+            market_rate_units_prop - market_rate_units_exist + num_aff_units_change;
+
+        let major_expansion_threshold_pct = if record.prj_feature_stories_net.unwrap_or(0.0) >= 1.0
+        {
             10.0
         } else {
             20.0
         };
-        let building_expand_pct = approx_net_bldg_area / approx_old_bldg_area *100.0;
+        let building_expand_pct = approx_net_bldg_area / approx_old_bldg_area * 100.0;
         let is_major_expansion = building_expand_pct >= major_expansion_threshold_pct;
-        if far > neighbors_mean_far && approx_net_bldg_area > 360.0 && (is_major_expansion || is_demolition)  {
-            info!("Prohibited: {} address: {}, far {:.02}, neighbor far: {:.02} ({} neighbors), bldg growth {:.0}sqft ({:.0}%)",
-                  &record.date_opened[0..10], record.address, far, neighbors_mean_far, neighbors.len(), approx_net_bldg_area, building_expand_pct);
+        if far > neighbors_mean_far
+            && approx_net_bldg_area > 360.0
+            && (is_major_expansion || is_demolition)
+        {
+            info!("Prohibited: {} address: {}, far {:.02}, neighbor far: {:.02} ({} neighbors), bldg growth {:.0}sqft ({:.0}%), mktrateunit: {}→{}, affunit:{}→{}",
+                  &record.date_opened[0..10], record.address, far, neighbors_mean_far, neighbors.len(), approx_net_bldg_area, building_expand_pct,
+                  market_rate_units_exist, market_rate_units_prop, affordable_units_exist, affordable_units_prop,
+            );
             num_prohibited_expansions += 1;
+            num_prohibited_units += num_units_change;
+            num_prohibited_aff_units += num_aff_units_change;
         } else {
-            info!("Probably OK: {} address: {}, far {:.02}, neighbor far: {:.02} ({} neighbors), bldg growth {:.0}sqft ({:.0}%)",
-                  &record.date_opened[0..10], record.address, far, neighbors_mean_far, neighbors.len(), approx_net_bldg_area, building_expand_pct);
+            info!("Probably OK: {} address: {}, far {:.02}, neighbor far: {:.02} ({} neighbors), bldg growth {:.0}sqft ({:.0}%), mktrateunit: {}→{}, affunit:{}→{}",
+                  &record.date_opened[0..10], record.address, far, neighbors_mean_far, neighbors.len(), approx_net_bldg_area, building_expand_pct,
+                  market_rate_units_exist, market_rate_units_prop, affordable_units_exist, affordable_units_prop,
+            );
             num_ok_expansions += 1;
+            num_ok_units += num_units_change;
+            num_ok_aff_units += num_aff_units_change;
         }
     }
     let frac =
@@ -246,6 +270,21 @@ fn expansions(
         num_ok_expansions,
         num_prohibited_expansions,
         (frac * 100.0) as i32
+    );
+    let net_units_frac = num_prohibited_units as f64 / (num_ok_units + num_prohibited_units) as f64;
+    info!(
+        "ok net units: {}; prohibited net units: {} ({}%)",
+        num_ok_units,
+        num_prohibited_units,
+        (net_units_frac * 100.0) as i32
+    );
+    let net_aff_units_frac =
+        num_prohibited_aff_units as f64 / (num_ok_aff_units + num_prohibited_aff_units) as f64;
+    info!(
+        "ok net “affordable” units: {}; prohibited net units: {} ({}%)",
+        num_ok_aff_units,
+        num_prohibited_aff_units,
+        (net_aff_units_frac * 100.0) as i32
     );
     Ok(())
 }
