@@ -3,74 +3,23 @@ extern crate csv;
 extern crate env_logger;
 #[macro_use]
 extern crate log;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate num_traits;
+extern crate parcelscan;
 
 use clap::AppSettings;
 use clap::SubCommand;
 use clap::{App, Arg};
 use csv::Reader;
+use parcelscan::sflanduse::LandUseRecord;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fs::File;
-
-#[derive(Debug, Deserialize)]
-struct Record {
-    #[serde(rename = "OBJECTID")]
-    objectid: usize,
-    #[serde(rename = "BLKLOT")]
-    blklot: String,
-    the_geom: String,
-    #[serde(rename = "MAPBLKLOT")]
-    mapblklot: String,
-    #[serde(rename = "BLOCK_NUM")]
-    block_num: String,
-    #[serde(rename = "LOT_NUM")]
-    lot_num: String,
-    #[serde(rename = "FROM_ST")]
-    from_st: Option<usize>,
-    #[serde(rename = "TO_ST")]
-    to_st: Option<usize>,
-    #[serde(rename = "STREET")]
-    street: String,
-    #[serde(rename = "ST_TYPE")]
-    st_type: String,
-    #[serde(rename = "RESUNITS")]
-    resunits: usize,
-    #[serde(rename = "BLDGSQFT")]
-    bldgsqft: usize,
-    #[serde(rename = "YRBUILT")]
-    yrbuilt: usize,
-    #[serde(rename = "TOTAL_USES")]
-    total_uses: usize,
-    #[serde(rename = "LANDUSE")]
-    landuse: String,
-    #[serde(rename = "CIE")]
-    cie: usize,
-    #[serde(rename = "MED")]
-    med: usize,
-    #[serde(rename = "MIPS")]
-    mips: usize,
-    #[serde(rename = "RETAIL")]
-    retail: usize,
-    #[serde(rename = "PDR")]
-    pdr: usize,
-    #[serde(rename = "VISITOR")]
-    visitor: usize,
-    #[serde(rename = "SHAPE_Leng")]
-    shape_leng: f64,
-    #[serde(rename = "SHAPE_Area")]
-    shape_area: f64,
-}
 
 fn houses_on_standard_lots(mut rdr: Reader<File>) -> Result<(), Box<Error>> {
     let mut num_normal_lots = 0;
     let mut num_lots = 0;
     let mut num_res_lots = 0;
-    let mut map: BTreeMap<usize, Vec<Record>> = BTreeMap::new();
-    for result in rdr.deserialize::<Record>() {
+    let mut map: BTreeMap<usize, Vec<LandUseRecord>> = BTreeMap::new();
+    for result in rdr.deserialize::<LandUseRecord>() {
         // The iterator yields Result<StringRecord, Error>, so we check the
         // error here.
         let record = result?;
@@ -124,8 +73,8 @@ fn houses_on_standard_lots(mut rdr: Reader<File>) -> Result<(), Box<Error>> {
 fn density_historgram(mut rdr: Reader<File>) -> Result<(), Box<Error>> {
     let mut num_lots = 0;
     let mut num_res_lots = 0;
-    let mut map: BTreeMap<i64, Vec<Record>> = BTreeMap::new();
-    for result in rdr.deserialize::<Record>() {
+    let mut map: BTreeMap<i64, Vec<LandUseRecord>> = BTreeMap::new();
+    for result in rdr.deserialize::<LandUseRecord>() {
         // The iterator yields Result<StringRecord, Error>, so we check the
         // error here.
         let record = result?;

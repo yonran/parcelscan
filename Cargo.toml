@@ -14,8 +14,13 @@ serde = "1.0.89"
 serde_derive = "1.0.89"
 wkt = "0.5.0"
 num-traits = "0.2.6"
+calamine = "0.15.3"
 
 # requires proj4 library; brew install proj
 proj = "0.7.0"
-geo-types = "0.2.2" # to match the version from proj
+# old version of geo-types needed to match the version used by proj, not the new one used by geo
+# Fortunately, geo re-exposes its geo-types,
+# and wkt has its own copy of the types (and optional dependency geo-types)
+geo-types = "0.2.2"
 rstar = "0.2"  # to match the version from geo, though it doesn't need to match
+conv = "0.3.3"
