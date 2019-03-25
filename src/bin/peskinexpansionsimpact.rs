@@ -8,6 +8,8 @@ extern crate parcelscan;
 extern crate log;
 extern crate num_traits;
 extern crate proj;
+#[macro_use]
+extern crate serde_derive;
 extern crate wkt;
 
 use clap::App;
@@ -133,9 +135,24 @@ fn get_neighboring_parcels<'a>(
     Ok(neighboring_parcels)
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct OutputRow {
+    address: String,
+    num_neighbors: usize,
+    neighbor_far: f64,
+    proposed_far: f64,
+    building_sqft_exist: f64,
+    building_sqft_prop: f64,
+    is_demolition: bool,
+    is_major_expansion: bool,
+    housing_units_exist: i64,
+    housing_units_prop: i64,
+}
+
 fn expansions(
     mut planning_rdr: csv::Reader<File>,
     mut land_use_rdr: csv::Reader<File>,
+    mut output_write: Option<csv::Writer<File>>,
 ) -> Result<(), Box<Error>> {
     info!("Expansions");
 
@@ -262,6 +279,20 @@ fn expansions(
             num_ok_units += num_units_change;
             num_ok_aff_units += num_aff_units_change;
         }
+        if let Some(output_write) = output_write.as_mut() {
+            output_write.serialize(OutputRow {
+                address: record.address,
+                num_neighbors: neighbors.len(),
+                neighbor_far: neighbors_mean_far,
+                proposed_far: far,
+                building_sqft_exist: approx_old_bldg_area,
+                building_sqft_prop: approx_new_bldg_area,
+                is_demolition,
+                is_major_expansion,
+                housing_units_exist: market_rate_units_exist + affordable_units_exist,
+                housing_units_prop: market_rate_units_prop + affordable_units_prop,
+            })?;
+        }
     }
     let frac =
         num_prohibited_expansions as f64 / (num_ok_expansions + num_prohibited_expansions) as f64;
@@ -308,6 +339,11 @@ fn main() -> Result<(), Box<Error>> {
             .required(true)
             .takes_value(true)
         )
+        .arg(Arg::with_name("out-projects")
+            .long("out-projects")
+            .help("csv file output")
+            .takes_value(true)
+        )
         .subcommand(SubCommand::with_name("expansions")
             .about("Show information about expansions")
         )
@@ -320,6 +356,7 @@ fn main() -> Result<(), Box<Error>> {
     let land_use_path = matches
         .value_of_os("land-use")
         .expect("Expected land-use file");
+    let out_projects_path = matches.value_of_os("out-projects");
     info!(
         "Opening {} and {}",
         planning.to_string_lossy(),
@@ -329,9 +366,18 @@ fn main() -> Result<(), Box<Error>> {
     let planning_rdr = csv::Reader::from_reader(planning_file);
     let land_use_file = File::open(land_use_path)?;
     let land_use_rdr = csv::Reader::from_reader(land_use_file);
+    let out_projects_writer_opt = out_projects_path
+        .map(
+            |path| -> Result<Option<csv::Writer<File>>, std::io::Error> {
+                info!("Opening output file {}", path.to_string_lossy());
+                let writer: File = File::create(path)?;
+                Ok(Some(csv::Writer::from_writer(writer)))
+            },
+        )
+        .unwrap_or(Ok(None))?;
 
     if let Some(_matches) = matches.subcommand_matches("expansions") {
-        expansions(planning_rdr, land_use_rdr)?;
+        expansions(planning_rdr, land_use_rdr, out_projects_writer_opt)?;
         Ok(())
     } else {
         panic!("Should not happen");
