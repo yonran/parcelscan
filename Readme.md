@@ -70,13 +70,15 @@ of Aaron Peskin’s demolition, mergers, and expansion prohibitions
 
 Methodology: The Peskin prohibited projects that this program can detect are those that expanded the residential area,
 the project building’s FAR was greater than the neighborhood FAR,
-and the size of the expansion was greater than 300 sq. ft.
-(the limit for “limited horizontal expansions”).
+and the size of the expansion was greater than 360 sq. ft.
+(the limit for “limited horizontal expansions” on a typical 25 ft. lot).
 The neighborhood FAR is calculated by looking at parcels whose centroid is within 300 ft. of the centroid of the project parcel,
 and dividing the `BLDGSQFT` by `SHAPE_Area` in the `LandUse` file.
 The project building FAR is calculated by summing all the `LAND_USE_*_PROP` columns
 (e.g. `LAND_USE_RESIDENTIAL_PROP`) in the SF Planning Acela PPTS file,
 and dividing it by the area of the `the_geom` column.
+Note that since the FAR is calculated from different data sources,
+there is potential for discrepancies.
 
 This is a subset of the projects that the Peskin bill would prohibit.
 It also prohibits other projects (e.g. expansions that contain new parking,

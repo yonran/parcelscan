@@ -221,7 +221,7 @@ fn expansions(
             .sum::<f64>()
             / neighbors.len() as f64;
 
-        if far > neighbors_mean_far && approx_net_bldg_area > 300.0 {
+        if far > neighbors_mean_far && approx_net_bldg_area > 360.0 {
             info!("Prohibited: {} address: {}, far {:.02}, neighbor far: {:.02} ({} neighbors), bldg growth {:.}sqft", &record.date_opened[0..10], record.address, far, neighbors_mean_far, neighbors.len(), approx_net_bldg_area);
             num_prohibited_expansions += 1;
         } else {
