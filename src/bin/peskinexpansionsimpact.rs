@@ -21,10 +21,12 @@ use geo::algorithm::centroid::Centroid;
 use geo::algorithm::contains::Contains;
 use geo::algorithm::euclidean_distance::EuclideanDistance;
 use geo::algorithm::map_coords::MapCoords;
+use geo::algorithm::closest_point::ClosestPoint;
 use geo::prelude::Area;
 use geo::Geometry;
 use geo::MultiPolygon;
 use geo::Point;
+use geo::Closest;
 use parcelscan::sflanduse::LandUseRecord;
 use parcelscan::sfplanningacela::PPTSRecord;
 use proj::Proj;
@@ -34,32 +36,49 @@ use rstar::AABB;
 use std::error::Error;
 use std::fs::File;
 use wkt::Wkt;
+use parcelscan::sfzoningdistricts::ZoningDistrict;
+use rstar::PointDistance;
+use std::io::Read;
 
-struct ParcelWrapper {
+struct PolygonWrapper<T> {
     multi_polygon: MultiPolygon<f64>,
     bounding_box: AABB<[f64; 2]>,
-    land_use_record: LandUseRecord,
+    value: T,
 }
-impl ParcelWrapper {
-    fn new(multi_polygon: MultiPolygon<f64>, land_use_record: LandUseRecord) -> Self {
+impl<T> PolygonWrapper<T> {
+    fn new(multi_polygon: MultiPolygon<f64>, value: T) -> Self {
         let bounding_rect =
             BoundingRect::bounding_rect(&multi_polygon).expect("bounding_rect failed");
         let bounding_box: AABB<[f64; 2]> = AABB::from_corners(
             [bounding_rect.min.x, bounding_rect.min.y],
             [bounding_rect.max.x, bounding_rect.max.y],
         );
-        ParcelWrapper {
+        PolygonWrapper {
             multi_polygon,
             bounding_box,
-            land_use_record,
+            value,
         }
     }
 }
-impl RTreeObject for ParcelWrapper {
+impl<T> RTreeObject for PolygonWrapper<T> {
     type Envelope = AABB<[f64; 2]>;
 
     fn envelope(&self) -> Self::Envelope {
         self.bounding_box.clone()
+    }
+}
+impl<T> PointDistance for PolygonWrapper<T> {
+    fn distance_2(&self, point: &[f64; 2]) -> f64 {
+        let point = Point::new(point[0], point[1]);
+        if self.multi_polygon.contains(&point) {
+            0.0
+        } else {
+            match self.multi_polygon.closest_point(&point) {
+                Closest::Intersection(_) => 0.0,
+                Closest::SinglePoint(p) => point.euclidean_distance(&p),
+                Closest::Indeterminate => panic!("MultiPolygon should contain at least 1 point"),
+            }
+        }
     }
 }
 
@@ -89,7 +108,7 @@ fn parse_wkt_to_multipolygon(the_geom: &str) -> Result<MultiPolygon<f64>, Box<Er
     Ok(multi_polygon)
 }
 fn get_neighboring_parcels<'a>(
-    rtree: &'a RTree<ParcelWrapper>,
+    rtree: &'a RTree<PolygonWrapper<LandUseRecord>>,
     shape: &MultiPolygon<f64>,
     deg_to_ft_proj: &Proj,
     radius_ft: f64,
@@ -129,29 +148,45 @@ fn get_neighboring_parcels<'a>(
             // skip self parcel
             continue;
         } else if centroid_ft.euclidean_distance(&other_centroid_ft) < radius_ft {
-            neighboring_parcels.push(&parcel_wrapper.land_use_record);
+            neighboring_parcels.push(&parcel_wrapper.value);
         }
     }
     Ok(neighboring_parcels)
+}
+fn get_zoning<'a>(
+    rtree: &'a RTree<PolygonWrapper<ZoningDistrict>>,
+    shape: &MultiPolygon<f64>,
+) -> Option<&'a ZoningDistrict> {
+    let centroid: Point<f64> = shape.centroid()
+        .expect("multipolygon should have at least one point");
+    rtree.locate_at_point(&[centroid.0.x, centroid.0.y])
+        .map(|polygon_wrapper| &polygon_wrapper.value)
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct OutputRow {
     address: String,
-    num_neighbors: usize,
-    neighbor_far: f64,
+    zoning_district: String,
+    date: String,
+    num_neighbor_units: usize,
+    mean_unit_size: f64,
+    neighbor_mean_unit_size: f64,
     proposed_far: f64,
     building_sqft_exist: f64,
     building_sqft_prop: f64,
     is_demolition: bool,
     is_major_expansion: bool,
-    housing_units_exist: i64,
-    housing_units_prop: i64,
+    market_rate_units_exist: i64,
+    market_rate_units_prop: i64,
+    affordable_units_exist: i64,
+    affordable_units_prop: i64,
+    is_prohibited: bool,
 }
 
 fn expansions(
     mut planning_rdr: csv::Reader<File>,
     mut land_use_rdr: csv::Reader<File>,
+    mut zoning_districts_rdr: csv::Reader<File>,
     mut output_write: Option<csv::Writer<File>>,
 ) -> Result<(), Box<Error>> {
     info!("Expansions");
@@ -170,16 +205,30 @@ fn expansions(
     .expect("Failed to create projection");
 
     info!("Scanning LandUse table of all parcels");
-    let mut parcels_vec: Vec<ParcelWrapper> = vec![];
+    let mut parcels_vec: Vec<PolygonWrapper<LandUseRecord>> = vec![];
     for result in land_use_rdr.deserialize::<LandUseRecord>() {
         // The iterator yields Result<StringRecord, Error>, so we check the
         // error here.
         let record = result?;
         let multi_polygon = parse_wkt_to_multipolygon(&record.the_geom)?;
-        parcels_vec.push(ParcelWrapper::new(multi_polygon, record));
+        parcels_vec.push(PolygonWrapper::new(multi_polygon, record));
     }
     info!("Generating LandUse rtree of all parcels");
     let rtree = RTree::bulk_load_parallel(parcels_vec);
+
+    info!("Scanning Zoning_Districts to make lookup table of zoning");
+    let mut zoning_districts_vec: Vec<PolygonWrapper<ZoningDistrict>> = vec![];
+    for result in zoning_districts_rdr.deserialize::<ZoningDistrict>() {
+        // The iterator yields Result<StringRecord, Error>, so we check the
+        // error here.
+        let record = result?;
+        let multi_polygon = parse_wkt_to_multipolygon(&record.the_geom)?;
+        zoning_districts_vec.push(PolygonWrapper::new(multi_polygon, record));
+    }
+    info!("Generating LandUse rtree of all parcels");
+    let zoning_districts_rtree = RTree::bulk_load_parallel(zoning_districts_vec);
+
+
     info!("Scanning PPTS records of applications");
     let mut num_prohibited_expansions = 0;
     let mut num_ok_expansions = 0;
@@ -235,63 +284,84 @@ fn expansions(
         let far = approx_new_bldg_area / parcel_area;
 
         let neighbors = get_neighboring_parcels(&rtree, &shape, &proj, 300f64)?;
-        let neighbors_mean_far: f64 = neighbors
+        let (num_neighbor_units, neighbor_bldgsqft) = neighbors
             .iter()
             .map(|land_use_record| {
-                land_use_record.bldgsqft as f64 / land_use_record.shape_area as f64
+                (land_use_record.resunits, land_use_record.bldgsqft)
             })
-            .sum::<f64>()
-            / neighbors.len() as f64;
+            .fold::<(usize, usize), _>((0usize, 0usize), |acc, item| {
+                (acc.0 + item.0, acc.1 + item.1)
+            })
+            ;
+        let neighbor_mean_unit_size: f64 = if num_neighbor_units > 0 {
+            neighbor_bldgsqft as f64 / num_neighbor_units as f64
+        } else {
+            std::f64::INFINITY
+        };
 
         let market_rate_units_exist = record.prj_feature_market_rate_exist.unwrap_or(0.0) as i64;
         let affordable_units_exist = record.prj_feature_affordable_exist.unwrap_or(0.0) as i64;
         let market_rate_units_prop = record.prj_feature_market_rate_prop.unwrap_or(0.0) as i64;
         let affordable_units_prop = record.prj_feature_affordable_prop.unwrap_or(0.0) as i64;
         let num_aff_units_change = affordable_units_prop - affordable_units_exist;
+        let housing_units_prop = market_rate_units_prop + affordable_units_prop;
         let num_units_change =
             market_rate_units_prop - market_rate_units_exist + num_aff_units_change;
+        let zoning_district = get_zoning(&zoning_districts_rtree, &shape)
+            .map(|zoning_district| &*zoning_district.zoning_sim)
+            .unwrap_or("");
+        let adus = record.residential_adu_studio_prop.unwrap_or_default() +
+            record.residential_adu_1br_prop.unwrap_or_default() +
+            record.residential_adu_2br_prop.unwrap_or_default() +
+            record.residential_adu_3br_prop.unwrap_or_default();
 
-        let major_expansion_threshold_pct = if record.prj_feature_stories_net.unwrap_or(0.0) >= 1.0
-        {
-            10.0
-        } else {
-            20.0
-        };
+        let major_expansion_threshold_pct = 10.0;
         let building_expand_pct = approx_net_bldg_area / approx_old_bldg_area * 100.0;
-        let is_major_expansion = building_expand_pct >= major_expansion_threshold_pct;
-        if far > neighbors_mean_far
-            && approx_net_bldg_area > 360.0
-            && (is_major_expansion || is_demolition)
-        {
-            info!("Prohibited: {} address: {}, far {:.02}, neighbor far: {:.02} ({} neighbors), bldg growth {:.0}sqft ({:.0}%), mktrateunit: {}→{}, affunit:{}→{}",
-                  &record.date_opened[0..10], record.address, far, neighbors_mean_far, neighbors.len(), approx_net_bldg_area, building_expand_pct,
-                  market_rate_units_exist, market_rate_units_prop, affordable_units_exist, affordable_units_prop,
-            );
+        let is_major_expansion = building_expand_pct >= major_expansion_threshold_pct &&
+            (
+                zoning_district == "RH-1(D)" && far > 0.5 ||
+                zoning_district == "RH-1" && far > 0.6 ||
+                zoning_district == "RH-2" && housing_units_prop == 1 && far > 0.6 ||
+                zoning_district == "RH-2" && far > 1.2 ||
+                zoning_district == "RH-3" && housing_units_prop == 1 && far > 0.6 ||
+                zoning_district == "RH-3" && housing_units_prop == 2 && far > 1.2 ||
+                zoning_district == "RH-3" && far > 1.8
+            ) &&
+            adus == 0
+        ;
+        let mean_unit_size = if housing_units_prop > 0 {approx_new_bldg_area / housing_units_prop as f64} else {0.0};
+        let is_prohibited = mean_unit_size > f64::min(neighbor_mean_unit_size, 1200.0)
+            && (is_major_expansion && housing_units_prop >= 2 || is_demolition);
+        if is_prohibited {
             num_prohibited_expansions += 1;
             num_prohibited_units += num_units_change;
             num_prohibited_aff_units += num_aff_units_change;
         } else {
-            info!("Probably OK: {} address: {}, far {:.02}, neighbor far: {:.02} ({} neighbors), bldg growth {:.0}sqft ({:.0}%), mktrateunit: {}→{}, affunit:{}→{}",
-                  &record.date_opened[0..10], record.address, far, neighbors_mean_far, neighbors.len(), approx_net_bldg_area, building_expand_pct,
-                  market_rate_units_exist, market_rate_units_prop, affordable_units_exist, affordable_units_prop,
-            );
             num_ok_expansions += 1;
             num_ok_units += num_units_change;
             num_ok_aff_units += num_aff_units_change;
         }
+        let o = OutputRow {
+            address: record.address,
+            zoning_district: zoning_district.to_string(),
+            date: record.date_opened[0..10].to_string(),
+            num_neighbor_units,
+            mean_unit_size,
+            neighbor_mean_unit_size,
+            proposed_far: far,
+            building_sqft_exist: approx_old_bldg_area,
+            building_sqft_prop: approx_new_bldg_area,
+            is_demolition,
+            is_major_expansion,
+            market_rate_units_exist,
+            market_rate_units_prop,
+            affordable_units_exist,
+            affordable_units_prop,
+            is_prohibited,
+        };
+        print_row(&o);
         if let Some(output_write) = output_write.as_mut() {
-            output_write.serialize(OutputRow {
-                address: record.address,
-                num_neighbors: neighbors.len(),
-                neighbor_far: neighbors_mean_far,
-                proposed_far: far,
-                building_sqft_exist: approx_old_bldg_area,
-                building_sqft_prop: approx_new_bldg_area,
-                is_demolition,
-                is_major_expansion,
-                housing_units_exist: market_rate_units_exist + affordable_units_exist,
-                housing_units_prop: market_rate_units_prop + affordable_units_prop,
-            })?;
+            output_write.serialize(o)?;
         }
     }
     let frac =
@@ -319,6 +389,32 @@ fn expansions(
     );
     Ok(())
 }
+fn print_row(o: &OutputRow) {
+    let prohibited_msg = if o.is_prohibited {"Prohibited"}
+    else if o.is_major_expansion {"Conditional"}
+    else {"Probably OK"};
+    let project_type = if o.is_demolition {"demolition"}
+    else if o.is_major_expansion {"major expansion"}
+    else {"other"};
+    println!(
+        "{prohibited_msg} {project_type}: {date} address: {address}, zone {zoning_district}, far {proposed_far:.02}, unit size: {mean_unit_size:.02}, neighbor mean size: {neighbor_mean_unit_size:.02} ({num_neighbor_units} units), bldg growth {approx_net_bldg_area:.0}sqft ({building_expand_pct:.0}%), mktrateunit: {market_rate_units_exist}→{market_rate_units_prop}, affunit:{affordable_units_exist}→{affordable_units_prop}",
+        prohibited_msg = prohibited_msg,
+        project_type = project_type,
+        date = o.date,
+        address = o.address,
+        zoning_district = o.zoning_district,
+        proposed_far = o.proposed_far,
+        mean_unit_size = o.mean_unit_size,
+        neighbor_mean_unit_size = o.neighbor_mean_unit_size,
+        num_neighbor_units = o.num_neighbor_units,
+        approx_net_bldg_area = o.building_sqft_prop - o.building_sqft_exist,
+        building_expand_pct = (o.building_sqft_prop - o.building_sqft_exist) / o.building_sqft_exist * 100.0,
+        market_rate_units_exist = o.market_rate_units_exist,
+        market_rate_units_prop = o.market_rate_units_prop,
+        affordable_units_exist = o.affordable_units_exist,
+        affordable_units_prop = o.affordable_units_prop,
+    );
+}
 
 fn main() -> Result<(), Box<Error>> {
     env_logger::init();
@@ -327,59 +423,90 @@ fn main() -> Result<(), Box<Error>> {
         .about("Show numbers of residential expansions that are probably prohibited by proposal")
         .author("Yonathan.")
         .after_help("Print projects most likely affected by Peskin ordinance (Board File 181216). Note: everything is output using the logger, so you should set RUST_LOG=peskinexpansionsimpact=info to see the output.")
-        .arg(Arg::with_name("planning")
-            .long("planning")
-            .help("Planning CSV file named PPTS_Records_data.csv from https://data.sfgov.org/Housing-and-Buildings/PPTS-Records/7yuw-98m5")
-            .required(true)
-            .takes_value(true)
-        )
-        .arg(Arg::with_name("land-use")
-            .long("land-use")
-            .help("parcels csv file LandUse2016.csv https://data.sfgov.org/Housing-and-Buildings/Land-Use/us3s-fp9q")
-            .required(true)
-            .takes_value(true)
-        )
-        .arg(Arg::with_name("out-projects")
-            .long("out-projects")
-            .help("csv file output")
-            .takes_value(true)
-        )
         .subcommand(SubCommand::with_name("expansions")
+            .arg(Arg::with_name("planning")
+                .long("planning")
+                .help("Planning CSV file named PPTS_Records_data.csv from https://data.sfgov.org/Housing-and-Buildings/PPTS-Records/7yuw-98m5")
+                .required(true)
+                .takes_value(true)
+            )
+            .arg(Arg::with_name("land-use")
+                .long("land-use")
+                .help("parcels csv file LandUse2016.csv https://data.sfgov.org/Housing-and-Buildings/Land-Use/us3s-fp9q")
+                .required(true)
+                .takes_value(true)
+            )
+            .arg(Arg::with_name("zoning-districts")
+                .long("zoning-districts")
+                .help("zoning map file Zoning_Map_-_Zoning_Districts_data.csv https://data.sfgov.org/Geographic-Locations-and-Boundaries/Zoning-Map-Zoning-Districts/xvjh-uu28")
+                .required(true)
+                .takes_value(true)
+            )
+            .arg(Arg::with_name("out-projects")
+                .long("out-projects")
+                .help("csv file output")
+                .takes_value(true)
+            )
             .about("Show information about expansions")
+        )
+        .subcommand(SubCommand::with_name("reprint")
+            .arg(Arg::with_name("projects")
+                .long("projects")
+                .help("csv file input, which was output by expansions")
+                .required(true)
+                .takes_value(true)
+            )
         )
         .setting(AppSettings::SubcommandRequired)
         .get_matches();
 
-    let planning = matches
-        .value_of_os("planning")
-        .expect("Expected planning file");
-    let land_use_path = matches
-        .value_of_os("land-use")
-        .expect("Expected land-use file");
-    let out_projects_path = matches.value_of_os("out-projects");
-    info!(
-        "Opening {} and {}",
-        planning.to_string_lossy(),
-        land_use_path.to_string_lossy()
-    );
-    let planning_file = File::open(planning)?;
-    let planning_rdr = csv::Reader::from_reader(planning_file);
-    let land_use_file = File::open(land_use_path)?;
-    let land_use_rdr = csv::Reader::from_reader(land_use_file);
-    let out_projects_writer_opt = out_projects_path
-        .map(
-            |path| -> Result<Option<csv::Writer<File>>, std::io::Error> {
-                info!("Opening output file {}", path.to_string_lossy());
-                let writer: File = File::create(path)?;
-                Ok(Some(csv::Writer::from_writer(writer)))
-            },
-        )
-        .unwrap_or(Ok(None))?;
 
-    if let Some(_matches) = matches.subcommand_matches("expansions") {
-        expansions(planning_rdr, land_use_rdr, out_projects_writer_opt)?;
-        Ok(())
+    if let Some(matches) = matches.subcommand_matches("expansions") {
+        let planning = matches
+            .value_of_os("planning")
+            .expect("Expected planning file");
+        let zoning_districts = matches
+            .value_of_os("zoning-districts")
+            .expect("Expected zoning-districts file");
+        let land_use_path = matches
+            .value_of_os("land-use")
+            .expect("Expected land-use file");
+        let out_projects_path = matches.value_of_os("out-projects");
+        info!(
+            "Opening {} and {}",
+            planning.to_string_lossy(),
+            land_use_path.to_string_lossy()
+        );
+        let planning_file = File::open(planning)?;
+        let planning_rdr = csv::Reader::from_reader(planning_file);
+        let land_use_file = File::open(land_use_path)?;
+        let land_use_rdr = csv::Reader::from_reader(land_use_file);
+        let zoning_districts_file = File::open(zoning_districts)?;
+        let zoning_districts_rdr = csv::Reader::from_reader(zoning_districts_file);
+        let out_projects_writer_opt = out_projects_path
+            .map(
+                |path| -> Result<Option<csv::Writer<File>>, std::io::Error> {
+                    info!("Opening output file {}", path.to_string_lossy());
+                    let writer: File = File::create(path)?;
+                    Ok(Some(csv::Writer::from_writer(writer)))
+                },
+            )
+            .unwrap_or(Ok(None))?;
+        expansions(planning_rdr, land_use_rdr, zoning_districts_rdr, out_projects_writer_opt)?;
+    } else if let Some(matches) = matches.subcommand_matches("reprint") {
+        let projects_path = matches.value_of_os("projects").expect("required arg should exist");
+        let projects_file: Box<Read> = if projects_path == "-" {
+            Box::new(std::io::stdin())
+        } else {
+            Box::new(File::open(projects_path)?)
+        };
+        let mut projects_rdr = csv::Reader::from_reader(projects_file);
+        for result in projects_rdr.deserialize::<OutputRow>() {
+            let o = result?;
+            print_row(&o);
+        }
     } else {
         panic!("Should not happen");
     }
+    Ok(())
 }

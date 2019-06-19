@@ -16,3 +16,4 @@ pub mod sfassessormap;
 pub mod sflanduse;
 pub mod sfplanningacela;
 pub mod xlsxdeserialize;
+pub mod sfzoningdistricts;

@@ -543,67 +543,67 @@ pub struct PPTSRecord {
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit Studio - Existing Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_STUDIO_EXIST")]
-    pub residential_adu_studio_exist: String,
+    pub residential_adu_studio_exist: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit Studio - Proposed Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_STUDIO_PROP")]
-    pub residential_adu_studio_prop: String,
+    pub residential_adu_studio_prop: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit Studio - Net Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_STUDIO_NET")]
-    pub residential_adu_studio_net: String,
+    pub residential_adu_studio_net: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit Studio - Area
     #[serde(rename = "RESIDENTIAL_ADU_STUDIO_AREA")]
-    pub residential_adu_studio_area: String,
+    pub residential_adu_studio_area: Option<f64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 1 Bedroom - Existing Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_1BR_EXIST")]
-    pub residential_adu_1br_exist: String,
+    pub residential_adu_1br_exist: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 1 Bedroom - Proposed Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_1BR_PROP")]
-    pub residential_adu_1br_prop: String,
+    pub residential_adu_1br_prop: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 1 Bedroom - Net Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_1BR_NET")]
-    pub residential_adu_1br_net: String,
+    pub residential_adu_1br_net: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 1 Bedroom - Area
     #[serde(rename = "RESIDENTIAL_ADU_1BR_AREA")]
-    pub residential_adu_1br_area: String,
+    pub residential_adu_1br_area: Option<f64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 2 Bedroom - Existing Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_2BR_EXIST")]
-    pub residential_adu_2br_exist: String,
+    pub residential_adu_2br_exist: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 2 Bedroom - Proposed Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_2BR_PROP")]
-    pub residential_adu_2br_prop: String,
+    pub residential_adu_2br_prop: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 2 Bedroom - Net Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_2BR_NET")]
-    pub residential_adu_2br_net: String,
+    pub residential_adu_2br_net: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 2 Bedroom - Area
     #[serde(rename = "RESIDENTIAL_ADU_2BR_AREA")]
-    pub residential_adu_2br_area: String,
+    pub residential_adu_2br_area: Option<f64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 3+ Bedroom - Existing Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_3BR_EXIST")]
-    pub residential_adu_3br_exist: String,
+    pub residential_adu_3br_exist: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 3+ Bedroom - Proposed Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_3BR_PROP")]
-    pub residential_adu_3br_prop: String,
+    pub residential_adu_3br_prop: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 3+ Bedroom - Net Unit(s)
     #[serde(rename = "RESIDENTIAL_ADU_3BR_NET")]
-    pub residential_adu_3br_net: String,
+    pub residential_adu_3br_net: Option<i64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Accessory Dwelling Unit 3+ Bedroom - Area
     #[serde(rename = "RESIDENTIAL_ADU_3BR_AREA")]
-    pub residential_adu_3br_area: String,
+    pub residential_adu_3br_area: Option<f64>,
 
     /// Land Use - Residential - Dwelling Unit Type - Group Housing - Rooms - Existing
     #[serde(rename = "RESIDENTIAL_GH_ROOMS_EXIST")]
