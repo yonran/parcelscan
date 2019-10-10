@@ -240,6 +240,16 @@ fn expansions(
         // The iterator yields Result<StringRecord, Error>, so we check the
         // error here.
         let record = result?;
+        if !(
+            record.record_status.contains("Permitted")
+            || record.record_status.contains("Issued")
+            || record.record_status.contains("Complete")
+            || record.record_status.contains("Approved")
+            || record.record_status.contains("Accepted")
+            || record.record_status.contains("Approval BOS")
+        ) {
+            continue;
+        }
         let is_residential_expansion = record.land_use_residential_exist.unwrap_or(0.0) > 0.0
             && record.land_use_residential_net.unwrap_or(0.0) > 0.0;
         if !is_residential_expansion {
