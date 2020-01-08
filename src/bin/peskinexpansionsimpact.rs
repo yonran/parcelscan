@@ -354,7 +354,7 @@ fn expansions(
         let o = OutputRow {
             address: record.address,
             zoning_district: zoning_district.to_string(),
-            date: record.date_opened[0..10].to_string(),
+            date: record.date_opened.date().to_string(),
             num_neighbor_units,
             mean_unit_size,
             neighbor_mean_unit_size,

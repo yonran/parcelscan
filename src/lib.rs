@@ -1,4 +1,5 @@
 extern crate calamine;
+extern crate chrono;
 extern crate conv;
 extern crate csv;
 extern crate serde;

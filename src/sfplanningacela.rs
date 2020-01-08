@@ -5,6 +5,98 @@
 //! See also DBI monthly permits
 //!
 
+use chrono::DateTime;
+use chrono::Utc;
+
+mod my_date_format {
+    // see https://serde.rs/custom-date-format.html
+    use chrono::{DateTime, Utc, TimeZone};
+    use serde::{self, Deserialize, Serializer, Deserializer};
+
+    #[cfg(test)]
+    mod test {
+        use super::deserialize;
+        use super::serde::de::IntoDeserializer;
+        use super::serde::de::value::Error;
+        #[test]
+        fn test() -> Result<(), Error> {
+            deserialize("11/27/1999 01:01:00 PM +0000".into_deserializer())?;
+//            deserialize("11/27/2019 12:00:00 AM +0000".into_deserializer())?;
+            Ok(())
+        }
+    }
+    const FORMAT: &'static str = "%m/%d/%Y %I:%M:%S %p %z";
+//    const FORMAT: &'static str = "%d/%m/%Y %I:%M:%S %p %z";
+
+    // The signature of a serialize_with function must follow the pattern:
+    //
+    //    fn serialize<S>(&T, S) -> Result<S::Ok, S::Error>
+    //    where
+    //        S: Serializer
+    //
+    // although it may also be generic over the input types T.
+    pub fn serialize<S>(
+        date: &DateTime<Utc>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        let s = format!("{}", date.format(FORMAT));
+        serializer.serialize_str(&s)
+    }
+
+    // The signature of a deserialize_with function must follow the pattern:
+    //
+    //    fn deserialize<'de, D>(D) -> Result<T, D::Error>
+    //    where
+    //        D: Deserializer<'de>
+    //
+    // although it may also be generic over the output types T.
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<DateTime<Utc>, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Utc.datetime_from_str(&s, FORMAT).map_err(|e|
+            serde::de::Error::custom(format!("Failed to parse date: {}; string: {}", e, s))
+        )
+    }
+}
+mod optional_date {
+    use chrono::{DateTime, Utc};
+    use serde::{self, Deserialize, Serializer, Deserializer};
+    pub fn serialize<S>(
+        date: &Option<DateTime<Utc>>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        if let &Some(ref date) = date {
+            self::super::my_date_format::serialize(date, serializer)
+        } else {
+            serializer.serialize_str("")
+        }
+    }
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<Option<DateTime<Utc>>, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if s == "" {
+            Ok(None)
+        } else {
+            use serde::de::IntoDeserializer;
+            self::super::my_date_format::deserialize(s.into_deserializer()).map(Some)
+        }
+    }
+}
+
 /// Fields Reference: http://default.sfplanning.org/GIS/DataSF_PPTS_Fields.xlsx
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PPTSRecord {
@@ -22,16 +114,16 @@ pub struct PPTSRecord {
     pub record_id: String,
 
     /// Date the record was created
-    #[serde(rename = "date_opened")]
-    pub date_opened: String,
+    #[serde(rename = "date_opened", with = "my_date_format")]
+    pub date_opened: DateTime<Utc>,
 
     /// Record status
     #[serde(rename = "record_status")]
     pub record_status: String,
 
     /// Date the record was closed
-    #[serde(rename = "date_closed")]
-    pub date_closed: String,
+    #[serde(rename = "date_closed", with = "optional_date")]
+    pub date_closed: Option<DateTime<Utc>>,
 
     /// The address of the project.  There may be multiple addresses related to a project, in these cases the primary address is displayed in this field.
     #[serde(rename = "address")]
