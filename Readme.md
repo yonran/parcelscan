@@ -114,3 +114,21 @@ Sample output:
 ```
 
 For full output see [this gist](https://gist.github.com/yonran/445a1d6c8fcbcf9fd81f954f831e6fff)
+
+## highlotcoverage
+
+This is in response to the “overbuilt” building 4326-4336 Irving Street
+([2020-06-04](https://sfplanning.org/event/planning-commission-92),
+[2019-016969DRMVAR](https://commissions.sfplanning.org/cpcpackets/2019-016969DRMVAR.pdf)).
+Planning Commissioner Kathrin Moore said she thought this apartment building should be demolished
+to make way for fewer units (8 max permitted in RH-2)
+instead of moving forward with the project (17 units).
+
+This program looks for other properties that are similar to 
+in that they have high lot coverage, contain residential units,
+and are currently zoned RH-2.
+
+```sh
+RUST_LOG=info cargo run --release --bin highlotcoverage coverage --footprints ~/Downloads/Building_Footprints.csv --land-use ~/Downloads/LandUse2016.csv --zoning-districts ~/Downloads/Zoning_Map_-_Zoning_Districts_data.csv --out /tmp/records.jsonl
+RUST_LOG=info cargo run --release --bin highlotcoverage geojson --file /tmp/records.jsonl
+```

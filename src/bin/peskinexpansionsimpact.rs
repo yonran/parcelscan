@@ -36,83 +36,18 @@ use rstar::AABB;
 use std::error::Error;
 use std::fs::File;
 use wkt::Wkt;
-use parcelscan::sfzoningdistricts::ZoningDistrict;
+use parcelscan::polygon_wrapper::{PolygonWrapper, parse_wkt_to_multipolygon};
+use parcelscan::sfzoningdistricts::{ZoningDistrict, get_zoning};
 use rstar::PointDistance;
 use std::io::Read;
+use parcelscan::geo_util::default_projection;
 
-struct PolygonWrapper<T> {
-    multi_polygon: MultiPolygon<f64>,
-    bounding_box: AABB<[f64; 2]>,
-    value: T,
-}
-impl<T> PolygonWrapper<T> {
-    fn new(multi_polygon: MultiPolygon<f64>, value: T) -> Self {
-        let bounding_rect =
-            BoundingRect::bounding_rect(&multi_polygon).expect("bounding_rect failed");
-        let bounding_box: AABB<[f64; 2]> = AABB::from_corners(
-            [bounding_rect.min.x, bounding_rect.min.y],
-            [bounding_rect.max.x, bounding_rect.max.y],
-        );
-        PolygonWrapper {
-            multi_polygon,
-            bounding_box,
-            value,
-        }
-    }
-}
-impl<T> RTreeObject for PolygonWrapper<T> {
-    type Envelope = AABB<[f64; 2]>;
-
-    fn envelope(&self) -> Self::Envelope {
-        self.bounding_box.clone()
-    }
-}
-impl<T> PointDistance for PolygonWrapper<T> {
-    fn distance_2(&self, point: &[f64; 2]) -> f64 {
-        let point = Point::new(point[0], point[1]);
-        if self.multi_polygon.contains(&point) {
-            0.0
-        } else {
-            match self.multi_polygon.closest_point(&point) {
-                Closest::Intersection(_) => 0.0,
-                Closest::SinglePoint(p) => point.euclidean_distance(&p),
-                Closest::Indeterminate => panic!("MultiPolygon should contain at least 1 point"),
-            }
-        }
-    }
-}
-
-fn parse_wkt_to_multipolygon(the_geom: &str) -> Result<MultiPolygon<f64>, Box<Error>> {
-    // TODO: take out the expect()s, and return Err instead
-    let parsed_wkt = Wkt::from_str(the_geom).expect("Could not parse WKT");
-    let wkt_shape = parsed_wkt
-        .items
-        .into_iter()
-        .next()
-        .expect("Expected one multipolygon; got none");
-    let multi_polygon = match wkt::conversion::try_into_geometry(&wkt_shape)
-        .expect("Failed to convert polygon wkt to geo_types")
-    {
-        Geometry::MultiPolygon(multi_polygon) => {
-            trace!(
-                "multipolygon {:?} area = {}sqft",
-                multi_polygon,
-                multi_polygon.area().round()
-            );
-            multi_polygon
-        }
-        _ => {
-            panic!("Expected only multipolygons in parcel file");
-        }
-    };
-    Ok(multi_polygon)
-}
 fn get_neighboring_parcels<'a>(
     rtree: &'a RTree<PolygonWrapper<LandUseRecord>>,
     shape: &MultiPolygon<f64>,
     deg_to_ft_proj: &Proj,
     radius_ft: f64,
-) -> Result<Vec<&'a LandUseRecord>, Box<Error>> {
+) -> Result<Vec<&'a LandUseRecord>, Box<Error + Send + Sync + 'static>> {
     let centroid: Point<f64> = shape
         .centroid()
         .expect("multipolygon should have at least one point");
@@ -153,15 +88,6 @@ fn get_neighboring_parcels<'a>(
     }
     Ok(neighboring_parcels)
 }
-fn get_zoning<'a>(
-    rtree: &'a RTree<PolygonWrapper<ZoningDistrict>>,
-    shape: &MultiPolygon<f64>,
-) -> Option<&'a ZoningDistrict> {
-    let centroid: Point<f64> = shape.centroid()
-        .expect("multipolygon should have at least one point");
-    rtree.locate_at_point(&[centroid.0.x, centroid.0.y])
-        .map(|polygon_wrapper| &polygon_wrapper.value)
-}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct OutputRow {
@@ -188,21 +114,9 @@ fn expansions(
     mut land_use_rdr: csv::Reader<File>,
     mut zoning_districts_rdr: csv::Reader<File>,
     mut output_write: Option<csv::Writer<File>>,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<Error + Send + Sync + 'static>> {
     info!("Expansions");
-
-    // projection for converting latitude and longitude (in degrees) into feet
-    // Project using Azimuthal Equidistant, centered on Market and Van Ness
-    // https://proj4.org/operations/projections/utm.html
-    let proj = Proj::new(
-        "
-    +proj=pipeline
-    +step +proj=unitconvert +xy_in=deg +xy_out=rad
-    +step +proj=aeqd +lat_0=37.773972 +lon_0=-122.431297
-    +step +proj=unitconvert +xy_in=m +xy_out=us-ft
-    ",
-    )
-    .expect("Failed to create projection");
+    let proj = default_projection();
 
     info!("Scanning LandUse table of all parcels");
     let mut parcels_vec: Vec<PolygonWrapper<LandUseRecord>> = vec![];
@@ -214,7 +128,7 @@ fn expansions(
         parcels_vec.push(PolygonWrapper::new(multi_polygon, record));
     }
     info!("Generating LandUse rtree of all parcels");
-    let rtree = RTree::bulk_load_parallel(parcels_vec);
+    let rtree = RTree::bulk_load(parcels_vec);
 
     info!("Scanning Zoning_Districts to make lookup table of zoning");
     let mut zoning_districts_vec: Vec<PolygonWrapper<ZoningDistrict>> = vec![];
@@ -226,7 +140,7 @@ fn expansions(
         zoning_districts_vec.push(PolygonWrapper::new(multi_polygon, record));
     }
     info!("Generating LandUse rtree of all parcels");
-    let zoning_districts_rtree = RTree::bulk_load_parallel(zoning_districts_vec);
+    let zoning_districts_rtree = RTree::bulk_load(zoning_districts_vec);
 
 
     info!("Scanning PPTS records of applications");
@@ -280,7 +194,7 @@ fn expansions(
             continue;
         }
         let shape: MultiPolygon<f64> = parse_wkt_to_multipolygon(&record.the_geom)?;
-        let shape_ft = shape.map_coords(&|&(lat, lon)| {
+        let shape_ft = shape.map_coords(|&(lat, lon)| {
             // convert to the old version of geo_types used by proj, and then convert back
             // to the new re-exported one used by geo
             let point = proj
@@ -426,7 +340,7 @@ fn print_row(o: &OutputRow) {
     );
 }
 
-fn main() -> Result<(), Box<Error>> {
+fn main() -> Result<(), Box<Error + Send + Sync + 'static>> {
     env_logger::init();
     let matches = App::new("peskinexpansionsimpact")
         .version("0.0")

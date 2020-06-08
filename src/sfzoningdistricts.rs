@@ -6,6 +6,11 @@
 //! See also Zoning Height Map
 //!
 
+use rstar::RTree;
+use crate::polygon_wrapper::PolygonWrapper;
+use geo::{MultiPolygon, Point};
+use geo::algorithm::centroid::Centroid;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ZoningDistrict {
     pub the_geom: String,
@@ -30,6 +35,16 @@ pub struct ZoningDistrict {
 
     #[serde(rename = "shape_Area")]
     pub shape_area: f64,
+}
+
+pub fn get_zoning<'a>(
+    rtree: &'a RTree<PolygonWrapper<ZoningDistrict>>,
+    shape: &MultiPolygon<f64>,
+) -> Option<&'a ZoningDistrict> {
+    let centroid: Point<f64> = shape.centroid()
+        .expect("multipolygon should have at least one point");
+    rtree.locate_at_point(&[centroid.0.x, centroid.0.y])
+        .map(|polygon_wrapper| &polygon_wrapper.value)
 }
 
 #[cfg(test)]

@@ -204,8 +204,8 @@ impl ParcelWrapper {
         let bounding_rect =
             BoundingRect::bounding_rect(&multi_polygon).expect("bounding_rect failed");
         let bounding_box: AABB<[f64; 2]> = AABB::from_corners(
-            [bounding_rect.min.x, bounding_rect.min.y],
-            [bounding_rect.max.x, bounding_rect.max.y],
+            [bounding_rect.min().x, bounding_rect.min().y],
+            [bounding_rect.max().x, bounding_rect.max().y],
         );
         ParcelWrapper {
             multi_polygon,
@@ -229,7 +229,7 @@ struct JoinedEntry {
 fn get_area(proj: &Proj, multi_polygon: &MultiPolygon<f64>) -> f64 {
     // https://proj4.org/operations/projections/aea.html
     let signed_area = multi_polygon
-        .map_coords(&|&(lat, lon)| {
+        .map_coords(|&(lat, lon)| {
             // Note: we are using geo_types here, which matches the version from proj.
             // This is different than the version of geo_types exported by wkt and geo
             use geo_types::Point;
@@ -276,7 +276,7 @@ fn density_historgram(
                         trace!(
                             "multipolygon {:?} area = {}sqft",
                             multi_polygon,
-                            multi_polygon.area().round()
+                            Area::<f64>::area(&multi_polygon).round()
                         );
                         multi_polygon
                     }
@@ -289,7 +289,7 @@ fn density_historgram(
         })
         .collect::<Result<Vec<ParcelWrapper>, _>>()?;
     info!("Bulk loading {} parcels", parcel_shapes.len());
-    let rtree = RTree::bulk_load_parallel(parcel_shapes);
+    let rtree = RTree::bulk_load(parcel_shapes);
     let mut num_lots = 0;
     let mut num_res_lots = 0;
     let mut num_buildings_without_parcel = 0;
