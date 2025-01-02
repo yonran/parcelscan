@@ -12,10 +12,8 @@ extern crate proj;
 extern crate serde_derive;
 extern crate wkt;
 
-use clap::App;
-use clap::AppSettings;
 use clap::Arg;
-use clap::SubCommand;
+use clap::Command;
 use geo::algorithm::bounding_rect::BoundingRect;
 use geo::algorithm::centroid::Centroid;
 use geo::algorithm::contains::Contains;
@@ -34,6 +32,7 @@ use rstar::RTree;
 use rstar::RTreeObject;
 use rstar::AABB;
 use std::error::Error;
+use std::ffi::OsString;
 use std::fs::File;
 use wkt::Wkt;
 use parcelscan::polygon_wrapper::{PolygonWrapper, parse_wkt_to_multipolygon};
@@ -342,60 +341,59 @@ fn print_row(o: &OutputRow) {
 
 fn main() -> Result<(), Box<Error + Send + Sync + 'static>> {
     env_logger::init();
-    let matches = App::new("peskinexpansionsimpact")
+    let matches = Command::new("peskinexpansionsimpact")
         .version("0.0")
         .about("Show numbers of residential expansions that are probably prohibited by proposal")
         .author("Yonathan.")
         .after_help("Print projects most likely affected by Peskin ordinance (Board File 181216). Note: everything is output using the logger, so you should set RUST_LOG=peskinexpansionsimpact=info to see the output.")
-        .subcommand(SubCommand::with_name("expansions")
-            .arg(Arg::with_name("planning")
+        .subcommand(Command::new("expansions")
+            .arg(Arg::new("planning")
                 .long("planning")
                 .help("Planning CSV file named PPTS_Records_data.csv from https://data.sfgov.org/Housing-and-Buildings/PPTS-Records/7yuw-98m5")
                 .required(true)
-                .takes_value(true)
+                .num_args(1)
             )
-            .arg(Arg::with_name("land-use")
+            .arg(Arg::new("land-use")
                 .long("land-use")
                 .help("parcels csv file LandUse2016.csv https://data.sfgov.org/Housing-and-Buildings/Land-Use/us3s-fp9q")
                 .required(true)
-                .takes_value(true)
+                .num_args(1)
             )
-            .arg(Arg::with_name("zoning-districts")
+            .arg(Arg::new("zoning-districts")
                 .long("zoning-districts")
                 .help("zoning map file Zoning_Map_-_Zoning_Districts_data.csv https://data.sfgov.org/Geographic-Locations-and-Boundaries/Zoning-Map-Zoning-Districts/xvjh-uu28")
                 .required(true)
-                .takes_value(true)
+                .num_args(1)
             )
-            .arg(Arg::with_name("out-projects")
+            .arg(Arg::new("out-projects")
                 .long("out-projects")
                 .help("csv file output")
-                .takes_value(true)
+                .num_args(1)
             )
             .about("Show information about expansions")
         )
-        .subcommand(SubCommand::with_name("reprint")
-            .arg(Arg::with_name("projects")
+        .subcommand(Command::new("reprint")
+            .arg(Arg::new("projects")
                 .long("projects")
                 .help("csv file input, which was output by expansions")
                 .required(true)
-                .takes_value(true)
+                .num_args(1)
             )
         )
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .get_matches();
-
 
     if let Some(matches) = matches.subcommand_matches("expansions") {
         let planning = matches
-            .value_of_os("planning")
+            .get_one::<OsString>("planning")
             .expect("Expected planning file");
         let zoning_districts = matches
-            .value_of_os("zoning-districts")
+            .get_one::<OsString>("zoning-districts")
             .expect("Expected zoning-districts file");
         let land_use_path = matches
-            .value_of_os("land-use")
+            .get_one::<OsString>("land-use")
             .expect("Expected land-use file");
-        let out_projects_path = matches.value_of_os("out-projects");
+        let out_projects_path = matches.get_one::<OsString>("out-projects");
         info!(
             "Opening {} and {}",
             planning.to_string_lossy(),
@@ -418,7 +416,9 @@ fn main() -> Result<(), Box<Error + Send + Sync + 'static>> {
             .unwrap_or(Ok(None))?;
         expansions(planning_rdr, land_use_rdr, zoning_districts_rdr, out_projects_writer_opt)?;
     } else if let Some(matches) = matches.subcommand_matches("reprint") {
-        let projects_path = matches.value_of_os("projects").expect("required arg should exist");
+        let projects_path = matches
+            .get_one::<OsString>("projects")
+            .expect("required arg should exist");
         let projects_file: Box<Read> = if projects_path == "-" {
             Box::new(std::io::stdin())
         } else {

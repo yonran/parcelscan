@@ -21,15 +21,14 @@ extern crate thiserror;
 extern crate wkt;
 
 use std::error::Error;
+use std::ffi::OsString;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Stdin, StdinLock, Write};
 use std::sync::{Mutex, RwLock};
 
 use chrono::Datelike;
-use clap::App;
-use clap::AppSettings;
 use clap::Arg;
-use clap::SubCommand;
+use clap::Command;
 use conv::ConvUtil;
 use geo::{Coordinate, Line, MultiPolygon, Point};
 use geo::algorithm::area::Area;
@@ -442,70 +441,70 @@ fn print_row(o: &OutputRow) {
 const MAIN_COMMAND: &str = "coverage";
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
-    let matches = App::new("lotcoverage")
+    let matches = Command::new("lotcoverage")
         .version("0.0")
         .about("List of buildings that exceed max lot coverage")
         .author("Yonathan.")
         .after_help("Print buildings that exceed 75% of lot coverage")
-        .subcommand(SubCommand::with_name(MAIN_COMMAND)
-            .arg(Arg::with_name("land-use")
+        .subcommand(Command::new(MAIN_COMMAND)
+            .arg(Arg::new("land-use")
                 .long("land-use")
                 .help("parcels csv file LandUse2016.csv https://data.sfgov.org/Housing-and-Buildings/Land-Use/us3s-fp9q")
                 .required(true)
-                .takes_value(true)
+                .num_args(1)
             )
-            .arg(Arg::with_name("zoning-districts")
+            .arg(Arg::new("zoning-districts")
                 .long("zoning-districts")
                 .help("zoning map file Zoning_Map_-_Zoning_Districts_data.csv https://data.sfgov.org/Geographic-Locations-and-Boundaries/Zoning-Map-Zoning-Districts/xvjh-uu28")
                 .required(true)
-                .takes_value(true)
+                .num_args(1)
             )
-            .arg(Arg::with_name("footprints")
+            .arg(Arg::new("footprints")
                 .long("footprints")
                 .help("Building_Footprints.csv file https://data.sfgov.org/Geographic-Locations-and-Boundaries/Building-Footprints/ynuv-fyni")
                 .required(true)
-                .takes_value(true)
+                .num_args(1)
             )
-            .arg(Arg::with_name("min-coverage")
+            .arg(Arg::new("min-coverage")
                 .long("min-coverage")
                 .help("Minimum lot coverage (0-1)")
-                .takes_value(true)
+                .num_args(1)
                 .required(false)
                 .default_value("0.85")
             )
-            .arg(Arg::with_name("out")
+            .arg(Arg::new("out")
                 .long("out")
                 .help("jsonl file output")
-                .takes_value(true)
+                .num_args(1)
             )
             .about("Show information about expansions")
         )
-        .subcommand(SubCommand::with_name("geojson")
-            .arg(Arg::with_name("file")
+        .subcommand(Command::new("geojson")
+            .arg(Arg::new("file")
                 .long("file")
                 .help("jsonl file input, which was output by coverage")
                 .required(true)
-                .takes_value(true)
+                .num_args(1)
             )
         )
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .get_matches();
-
 
     if let Some(matches) = matches.subcommand_matches(MAIN_COMMAND) {
         let zoning_districts = matches
-            .value_of_os("zoning-districts")
+            .get_one::<OsString>("zoning-districts")
             .expect("Expected zoning-districts file");
         let land_use_path = matches
-            .value_of_os("land-use")
+            .get_one::<OsString>("land-use")
             .expect("Expected land-use file");
         let footprints = matches
-            .value_of_os("footprints")
+            .get_one::<OsString>("footprints")
             .expect("Expected footprints file");
-        let min_coverage = value_t!(matches.value_of("min-coverage"), f64)
+        let min_coverage = *matches
+            .get_one::<f64>("min-coverage")
             .expect("Expected value for min-coverage");
 
-        let out_projects_path = matches.value_of_os("out");
+        let out_projects_path = matches.get_one::<OsString>("out");
         let land_use_file = File::open(land_use_path)?;
         let land_use_rdr = csv::Reader::from_reader(land_use_file);
         let zoning_districts_file = File::open(zoning_districts)?;
@@ -523,7 +522,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             .unwrap_or(Ok(None))?;
         lot_coverage(land_use_rdr, zoning_districts_rdr, footprints_rdr, min_coverage, out_projects_writer_opt)?;
     } else if let Some(matches) = matches.subcommand_matches("geojson") {
-        let projects_path = matches.value_of_os("file").expect("required arg should exist");
+        let projects_path = matches
+            .get_one::<OsString>("file")
+            .expect("required arg should exist");
         let mut projects_file = BufReader::new(File::open(projects_path)?);
         let mut lines: Vec<OutputRow> = vec![];
 

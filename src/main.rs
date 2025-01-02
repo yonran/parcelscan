@@ -5,13 +5,12 @@ extern crate env_logger;
 extern crate log;
 extern crate parcelscan;
 
-use clap::AppSettings;
-use clap::SubCommand;
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use csv::Reader;
 use parcelscan::sflanduse::LandUseRecord;
 use std::collections::BTreeMap;
 use std::error::Error;
+use std::ffi::OsString;
 use std::fs::File;
 
 fn houses_on_standard_lots(mut rdr: Reader<File>) -> Result<(), Box<Error>> {
@@ -127,26 +126,29 @@ fn density_historgram(mut rdr: Reader<File>) -> Result<(), Box<Error>> {
 
 fn main() -> Result<(), Box<Error>> {
     env_logger::init();
-    let matches = App::new("parcelscan")
+    let matches = Command::new("parcelscan")
         .version("0.0")
         .about("Scan parcels and print details")
         .author("Yonathan.")
         .after_help("Show stats on sf parcels csv file LandUse2016.csv https://data.sfgov.org/Housing-and-Buildings/Land-Use/us3s-fp9q")
-        .arg(Arg::with_name("input")
+        .arg(Arg::new("input")
             .long("input")
             .required(true)
-            .takes_value(true)
+            .num_args(1)
         )
-        .subcommand(SubCommand::with_name("houses-on-standard-lots")
+        .subcommand(Command::new("houses-on-standard-lots")
             .about("Show statistics about standard-sized lots")
         )
-        .subcommand(SubCommand::with_name("density-historgram")
+        .subcommand(Command::new("density-historgram")
             .about("Show statistics about all residences")
         )
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
+        .subcommand_required(true)
         .get_matches();
 
-    let input = matches.value_of_os("input").expect("Expected input");
+    let input = matches
+        .get_one::<OsString>("input")
+        .expect("Expected input");
     info!("Opening {}", input.to_string_lossy());
     let file = File::open(input)?;
     let rdr = csv::Reader::from_reader(file);

@@ -13,12 +13,11 @@ extern crate serde_derive;
 extern crate wkt;
 
 use chrono::Datelike;
-use clap::App;
-use clap::AppSettings;
 use clap::Arg;
-use clap::SubCommand;
+use clap::Command;
 use parcelscan::sfplanningacela::PPTSRecord;
 use std::error::Error;
+use std::ffi::OsString;
 use std::fs::File;
 use std::io::Read;
 
@@ -103,42 +102,42 @@ fn print_row(o: &OutputRow) {
 
 fn main() -> Result<(), Box<Error>> {
     env_logger::init();
-    let matches = App::new("approvedapartments")
+    let matches = Command::new("approvedapartments")
         .version("0.0")
         .about("Shows apartments that were approved")
         .author("Yonathan.")
         .after_help("Print stats on apartments that were approved since 2017-01-01. Note: everything is output using the logger, so you should set RUST_LOG=approvedapartments=info to see the output.")
-        .subcommand(SubCommand::with_name("apartments")
-            .arg(Arg::with_name("planning")
+        .subcommand(Command::new("apartments")
+            .arg(Arg::new("planning")
                 .long("planning")
                 .help("Planning CSV file named PPTS_Records_data.csv from https://data.sfgov.org/Housing-and-Buildings/PPTS-Records/7yuw-98m5")
                 .required(true)
-                .takes_value(true)
+                .num_args(1)
             )
-            .arg(Arg::with_name("out-projects")
+            .arg(Arg::new("out-projects")
                 .long("out-projects")
                 .help("csv file output")
-                .takes_value(true)
+                .num_args(1)
             )
             .about("Show information about expansions")
         )
-        .subcommand(SubCommand::with_name("reprint")
-            .arg(Arg::with_name("projects")
+        .subcommand(Command::new("reprint")
+            .arg(Arg::new("projects")
                 .long("projects")
                 .help("csv file input, which was output by apartments")
                 .required(true)
-                .takes_value(true)
+                .num_args(1)
             )
         )
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .get_matches();
 
 
     if let Some(matches) = matches.subcommand_matches("apartments") {
         let planning = matches
-            .value_of_os("planning")
+            .get_one::<OsString>("planning")
             .expect("Expected planning file");
-        let out_projects_path = matches.value_of_os("out-projects");
+        let out_projects_path = matches.get_one::<OsString>("out-projects");
         info!(
             "Opening acela: {acela}",
             acela = planning.to_string_lossy()
@@ -156,7 +155,9 @@ fn main() -> Result<(), Box<Error>> {
             .unwrap_or(Ok(None))?;
         expansions(planning_rdr, out_projects_writer_opt)?;
     } else if let Some(matches) = matches.subcommand_matches("reprint") {
-        let projects_path = matches.value_of_os("projects").expect("required arg should exist");
+        let projects_path = matches
+            .get_one::<OsString>("projects")
+            .expect("required arg should exist");
         let projects_file: Box<Read> = if projects_path == "-" {
             Box::new(std::io::stdin())
         } else {

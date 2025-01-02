@@ -13,9 +13,7 @@ extern crate serde_derive;
 extern crate num_traits;
 extern crate wkt;
 
-use clap::AppSettings;
-use clap::SubCommand;
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use csv::Reader;
 use geo::algorithm::area::Area;
 use geo::algorithm::bounding_rect::BoundingRect;
@@ -27,6 +25,7 @@ use proj::Proj;
 use rstar::{RTree, RTreeObject, AABB};
 use std::collections::BTreeMap;
 use std::error::Error;
+use std::ffi::OsString;
 use std::fs::File;
 use wkt::{ToWkt, Wkt};
 
@@ -412,32 +411,34 @@ fn density_historgram(
 
 fn main() -> Result<(), Box<Error>> {
     env_logger::init();
-    let matches = App::new("parcelscanchicago")
+    let matches = Command::new("parcelscanchicago")
         .version("0.0")
         .about("Scan parcels and print details")
         .author("Yonathan.")
         .after_help("Show stats on chicago parcels csv file buildings.csv https://data.cityofchicago.org/Buildings/Building-Footprints-current-/hz9b-7nh8")
-        .arg(Arg::with_name("buildings")
+        .arg(Arg::new("buildings")
             .long("buildings")
             .required(true)
-            .takes_value(true)
+            .num_args(1)
         )
-        .arg(Arg::with_name("parcels")
+        .arg(Arg::new("parcels")
             .long("parcels")
             .help("Cook County Parcels file e.g. ccgisdata_-_Parcels_2016.csv from https://datacatalog.cookcountyil.gov/GIS-Maps/ccgisdata-Parcels-2016/a33b-b59u")
             .required(true)
-            .takes_value(true)
+            .num_args(1)
         )
-        .subcommand(SubCommand::with_name("density-historgram")
+        .subcommand(Command::new("density-historgram")
             .about("Show statistics about all residences")
         )
-        .setting(AppSettings::SubcommandRequired)
+        .subcommand_required(true)
         .get_matches();
 
     let buildings = matches
-        .value_of_os("buildings")
+        .get_one::<OsString>("buildings")
         .expect("Expected buildings");
-    let parcels = matches.value_of_os("parcels").expect("Expected parcels");
+    let parcels = matches
+        .get_one::<OsString>("parcels")
+        .expect("Expected parcels");
     // TODO: add parsing for parcels
     // https://datacatalog.cookcountyil.gov/GIS-Maps/ccgisdata-Parcels-2016/a33b-b59u
     info!(
