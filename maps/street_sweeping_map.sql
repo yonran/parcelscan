@@ -42,9 +42,37 @@ SELECT '<!DOCTYPE html>
             font-family: Arial, sans-serif;
             font-size: 14px;
         }
-        .legend h4 {
-            margin: 0 0 10px 0;
+        .legend details {
+            margin: 0;
+        }
+        .legend summary {
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-weight: 700;
             font-size: 16px;
+        }
+        .legend summary::-webkit-details-marker {
+            display: none;
+        }
+        .legend summary::marker {
+            content: "";
+        }
+        .legend summary::after {
+            content: "Hide";
+            font-size: 12px;
+            font-weight: 400;
+            color: #555;
+            flex: none;
+        }
+        .legend details:not([open]) summary::after {
+            content: "Show";
+        }
+        .legend-body {
+            margin-top: 6px;
         }
         .legend-item {
             margin: 5px 0;
@@ -70,9 +98,36 @@ SELECT '<!DOCTYPE html>
             font-size: 13px;
             line-height: 1.3;
         }
-        .map-header h1 {
-            margin: 0 0 6px 0;
+        .map-header summary {
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .map-header summary::-webkit-details-marker {
+            display: none;
+        }
+        .map-header summary::marker {
+            content: "";
+        }
+        .map-header summary::after {
+            content: "Hide";
+            font-size: 12px;
+            color: #555;
+            flex: none;
+        }
+        .map-header:not([open]) summary::after {
+            content: "Show";
+        }
+        .map-header .summary-title {
             font-size: 18px;
+            font-weight: 700;
+            margin: 0;
+        }
+        .map-header .map-header-body {
+            margin-top: 6px;
         }
         .map-header p {
             margin: 6px 0;
@@ -84,21 +139,38 @@ SELECT '<!DOCTYPE html>
         .map-header a:hover {
             text-decoration: underline;
         }
+        @media (max-width: 640px) {
+            .map-header {
+                max-width: none;
+                width: calc(100% - 20px);
+                padding: 10px 12px;
+                font-size: 12px;
+            }
+            .map-header .summary-title {
+                font-size: 16px;
+            }
+            .legend {
+                padding: 8px;
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="map-header">
-        <h1>San Francisco Street Sweeping Frequency</h1>
-        <p>Segments are colored by the highest sweeping frequency across either side of the street. If sides differ, the frequency line lists each side separately. Uncolored streets indicate either no sweeping schedule (e.g., Panorama Dr, Miraloma Dr) or no parking allowed (e.g., Sunset Blvd).</p>
-        <p>Updated: ' || COALESCE(
-            strftime(
-                to_timestamp(rows_updated_at) AT TIME ZONE 'America/Los_Angeles',
-                '%Y-%m-%d'
-            ),
-            'unknown'
-        ) || '.</p>
-        <p>Source: <a href="https://data.sfgov.org/City-Infrastructure/Street-Sweeping-Schedule/yhqp-riqs">SF Open Data - Street Sweeping Schedule</a>.</p>
-    </div>
+    <details class="map-header" id="map-info" open>
+        <summary><span class="summary-title">San Francisco Street Sweeping Frequency</span></summary>
+        <div class="map-header-body">
+            <p>Segments are colored by the highest sweeping frequency across either side of the street. If sides differ, the frequency line lists each side separately. Uncolored streets indicate either no sweeping schedule (e.g., Panorama Dr, Miraloma Dr) or no parking allowed (e.g., Sunset Blvd).</p>
+            <p>Updated: ' || COALESCE(
+                strftime(
+                    to_timestamp(rows_updated_at) AT TIME ZONE 'America/Los_Angeles',
+                    '%Y-%m-%d'
+                ),
+                'unknown'
+            ) || '.</p>
+            <p>Source: <a href="https://data.sfgov.org/City-Infrastructure/Street-Sweeping-Schedule/yhqp-riqs">SF Open Data - Street Sweeping Schedule</a>.</p>
+        </div>
+    </details>
     <div id="map"></div>
     <script>
         var map = L.map("map").setView([37.7749, -122.4194], 12);
@@ -107,6 +179,20 @@ SELECT '<!DOCTYPE html>
             style: "https://tiles.openfreemap.org/styles/liberty"
         }).addTo(map);
         map.attributionControl.addAttribution("<a href=\"https://openfreemap.org\" target=\"_blank\">OpenFreeMap</a> <a href=\"https://www.openmaptiles.org/\" target=\"_blank\">© OpenMapTiles</a> Data from <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">OpenStreetMap</a>");
+
+        function collapsePanelsForMobile() {
+            if (!window.matchMedia("(max-width: 640px)").matches) {
+                return;
+            }
+            var info = document.getElementById("map-info");
+            if (info) {
+                info.removeAttribute("open");
+            }
+            var legendDetails = document.querySelector(".legend-details");
+            if (legendDetails) {
+                legendDetails.removeAttribute("open");
+            }
+        }
 
         function getColor(daysPerWeek, timesPerMonth) {
             if (daysPerWeek >= 7) return "#67001f";  // Dark red: Daily
@@ -610,7 +696,9 @@ SELECT '
         var legend = L.control({position: "bottomright"});
         legend.onAdd = function(map) {
             var div = L.DomUtil.create("div", "legend");
-            div.innerHTML = "<h4>Street Sweeping Frequency</h4>" +
+            div.innerHTML = "<details class=\"legend-details\" open>" +
+                "<summary>Street Sweeping Frequency</summary>" +
+                "<div class=\"legend-body\">" +
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#67001f\"></span>Daily (7x/week)</div>" +
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#d73027\"></span>5-6x per week</div>" +
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#fc8d59\"></span>3-4x per week</div>" +
@@ -618,10 +706,12 @@ SELECT '
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#91bfdb\"></span>Weekly (4-5x/month)</div>" +
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#abd9e9\"></span>3x per month</div>" +
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#e0f3f8\"></span>Biweekly (2x/month)</div>" +
-                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#ffffbf\"></span>Monthly</div>";
+                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#ffffbf\"></span>Monthly</div>" +
+                "</div></details>";
             return div;
         };
         legend.addTo(map);
+        collapsePanelsForMobile();
     </script>
 </body>
 </html>';
