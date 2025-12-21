@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: "0 9 * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Unconditionally regenerate the html (even if the data rowsUpdatedAt has not changed)'
+        type: boolean
 
 permissions:
   contents: write
@@ -75,10 +79,13 @@ jobs:
         env:
           SOCRATA_API_KEY_ID: ${{ secrets.SOCRATA_API_KEY_ID }}
           SOCRATA_API_KEY_SECRET: ${{ secrets.SOCRATA_API_KEY_SECRET }}
+          FORCE: ${{ inputs.force == 'true' }}
         run: |
           set -eux
 
-          if git show origin/gh-pages:street_sweeping_map.html | grep rowsUpdatedAt= | cut -d= -f2 >/tmp/last.txt 2>/dev/null; then
+          if [ "$FORCE" = "true" ]; then
+            last_updated=0
+          elif git show origin/gh-pages:street_sweeping_map.html | grep rowsUpdatedAt= | cut -d= -f2 >/tmp/last.txt 2>/dev/null; then
             last_updated=$(tr -d '\n' </tmp/last.txt)
           fi
           : ${last_updated:=0}
