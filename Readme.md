@@ -1,6 +1,6 @@
 Programs that scan sfgov data and print statistics
 
-Prerequisites:
+Prerequisites for the rust programs:
 
 * [rust language](https://www.rust-lang.org/learn/get-started)
 (tested on rustc 1.32).
@@ -10,6 +10,21 @@ shared library for projections
 (Mac: `brew install proj`)
 
 Other dependencies are downloaded automatically by `cargo`.
+
+Prerequisites for the sql scripts:
+
+* [DuckDB](https://duckdb.org/)
+* bash, jq, curl
+
+## street sweeping map
+
+This is a map of street sweeping frequencies in San Francisco. Rendered at https://yonran.github.io/parcelscan/street_sweeping_map.html. ([reddit post](https://www.reddit.com/r/sanfrancisco/comments/1psiuj0/street_sweeping_frequency_map/))
+
+Observations:
+
+* Hills (e.g. Twin Peaks, Russian Hill, Mt Davidson) are not swept at all. Trash flows downhill.
+* The eastern parts are generally swept more frequently than the western side. I guess wind blows the trash from west to east.
+* Downtown, Tenderloin, SOMA, Mission need more frequent cleaning than once a week
 
 ## parcelscan
 
@@ -132,3 +147,8 @@ and are currently zoned RH-2.
 RUST_LOG=info cargo run --release --bin highlotcoverage coverage --footprints ~/Downloads/Building_Footprints.csv --land-use ~/Downloads/LandUse2016.csv --zoning-districts ~/Downloads/Zoning_Map_-_Zoning_Districts_data.csv --out /tmp/records.jsonl
 RUST_LOG=info cargo run --release --bin highlotcoverage geojson --file /tmp/records.jsonl
 ```
+
+## CI GitHub Workflows setup
+
+* In github Repository → Settings → Environments, create an Environment named `gh-pages-builder` (to match [`jobs.<job_id>.environment`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenvironment) in [update_street_sweeping_map.yml](.github/workflows/update_street_sweeping_map.yml))
+* In socrata, create an API Key in Developer Settings https://data.sfgov.org/profile/edit/developer_settings. Copy it as `SOCRATA_API_KEY_ID` and `SOCRATA_API_KEY_SECRET` secrets in the GitHub Environment.

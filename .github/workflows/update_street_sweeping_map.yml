@@ -1,0 +1,125 @@
+name: Update Street Sweeping Map
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm-slim
+    environment: gh-pages-builder
+    env:
+      DUCKDB_VERSION: "1.1.3"
+    steps:
+      - name: Install system dependencies
+        run: |
+          set -eux
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates \
+            curl \
+            git \
+            jq \
+            python3 \
+            tzdata \
+            unzip
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          # don’t save GITHUB_TOKEN to .git/config; use credential helper instead
+          # so we can control which commands get the permissions
+          persist-credentials: false
+          # checkout all branches including gh-pages
+          fetch-depth: 0
+      - name: configure git to use GIT_PASSWORD
+        run: |
+          set -eux
+          git config --global credential.https://github.com.helper '!f(){ test "$1" = get && printf "username=x-access-token\npassword=%s\n" "$GIT_PASSWORD"; }; f'
+          git config --global --add url.https://github.com/.insteadOf ssh://git@github.com/
+          # github.repositoryUrl points to git:// even though that would never work since this is a private repo
+          git config --global --add url.https://github.com/.insteadOf git://github.com/
+        shell: bash
+
+      - name: Cache DuckDB CLI
+        uses: actions/cache@v4
+        with:
+          path: .cache/duckdb
+          key: duckdb-${{ env.DUCKDB_VERSION }}
+
+      - name: Install DuckDB CLI
+        run: |
+          set -eux
+          mkdir -p .cache/duckdb
+          if [ ! -x .cache/duckdb/duckdb ]; then
+            curl -L -o /tmp/duckdb.zip \
+              "https://github.com/duckdb/duckdb/releases/download/v${DUCKDB_VERSION}/duckdb_cli-linux-amd64.zip"
+            unzip -d /tmp /tmp/duckdb.zip
+            mv /tmp/duckdb .cache/duckdb/duckdb
+            chmod +x .cache/duckdb/duckdb
+            fi
+          echo "${GITHUB_WORKSPACE}/.cache/duckdb" >> "$GITHUB_PATH"
+          PATH="$PATH:${GITHUB_WORKSPACE}/.cache/duckdb"
+          duckdb --version
+
+      - name: Fetch Socrata metadata
+        id: download
+        env:
+          SOCRATA_API_KEY_ID: ${{ secrets.SOCRATA_API_KEY_ID }}
+          SOCRATA_API_KEY_SECRET: ${{ secrets.SOCRATA_API_KEY_SECRET }}
+        run: |
+          set -eux
+
+          if git show origin/gh-pages:street_sweeping_map.html | grep rowsUpdatedAt= | cut -d= -f2 >/tmp/last.txt 2>/dev/null; then
+            last_updated=$(tr -d '\n' </tmp/last.txt)
+          fi
+          : ${last_updated:=0}
+
+          # note: this script will output did_update=true or false
+          # and rows_updated_at
+          scripts/download_socrata.sh --id=yhqp-riqs --if-modified-since="$last_updated" >> "$GITHUB_OUTPUT"
+
+      - name: Download data and regenerate map
+        if: steps.download.outputs.did_update == 'true'
+        env:
+          SOCRATA_API_KEY_ID: ${{ secrets.SOCRATA_API_KEY_ID }}
+          SOCRATA_API_KEY_SECRET: ${{ secrets.SOCRATA_API_KEY_SECRET }}
+        run: |
+          set -eux
+          rows_updated_at="${{ steps.download.outputs.rows_updated_at }}"
+          csv_path="data/yhqp-riqs.csv"
+
+          duckdb \
+            -cmd "CREATE MACRO street_sweeping_source_file() AS '$csv_path'" \
+            -cmd "CREATE MACRO street_sweeping_metadata_file() AS 'data/yhqp-riqs-meta.json'" \
+            -csv < maps/street_sweeping_map.sql > street_sweeping_map.html
+
+      - name: Publish to gh-pages
+        if: steps.download.outputs.did_update == 'true'
+        run: |
+          set -eux
+          rows_updated_at="${{ steps.download.outputs.rows_updated_at }}"
+          rows_updated_at_date=$(TZ=America/Los_Angeles date -d "@$rows_updated_at" +%Y-%m-%d)
+
+          # need to add safe.directory
+          # fatal: detected dubious ownership in repository at '/__w/parcelscan/parcelscan'
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git worktree add -B gh-pages /tmp/gh-pages origin/gh-pages
+          cp street_sweeping_map.html /tmp/gh-pages/
+
+          cd /tmp/gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add street_sweeping_map.html
+          git commit -m "Update street sweeping map (${rows_updated_at_date})" || exit 0
+          git push origin HEAD:gh-pages
+        env:
+          GIT_PASSWORD: ${{ github.token }}
