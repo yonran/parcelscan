@@ -176,9 +176,9 @@ SELECT '<!DOCTYPE html>
         var map = L.map("map").setView([37.7749, -122.4194], 12);
 
         L.maplibreGL({
-            style: "https://tiles.openfreemap.org/styles/liberty"
+            style: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
         }).addTo(map);
-        map.attributionControl.addAttribution("<a href=\"https://openfreemap.org\" target=\"_blank\">OpenFreeMap</a> <a href=\"https://www.openmaptiles.org/\" target=\"_blank\">© OpenMapTiles</a> Data from <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">OpenStreetMap</a>");
+        map.attributionControl.addAttribution("© <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">OpenStreetMap</a> contributors © <a href=\"https://carto.com/attributions\" target=\"_blank\">CARTO</a>");
 
         function collapsePanelsForMobile() {
             if (!window.matchMedia("(max-width: 640px)").matches) {
@@ -198,21 +198,21 @@ SELECT '<!DOCTYPE html>
             if (daysPerWeek >= 7) return "#67001f";  // Dark red: Daily
             if (daysPerWeek >= 5) return "#d73027";  // Red: 5-6x per week
             if (daysPerWeek >= 3) return "#fc8d59";  // Orange: 3-4x per week
-            if (daysPerWeek === 2) return "#fee090"; // Yellow: 2x per week
+            if (daysPerWeek === 2) return "#a15a00"; // Burnt orange: 2x per week
             if (daysPerWeek === 1) {
                 // One day per week - check monthly frequency
-                if (timesPerMonth >= 4) return "#91bfdb";  // Light blue: Weekly (4-5x/month)
-                if (timesPerMonth === 3) return "#abd9e9";  // Lighter blue: 3x per month
-                if (timesPerMonth === 2) return "#e0f3f8";  // Very light blue: Semimonthly
-                if (timesPerMonth === 1) return "#ffffbf";  // Pale yellow: Monthly
+                if (timesPerMonth >= 4) return "#1f78b4";  // Blue: Weekly (4-5x/month)
+                if (timesPerMonth === 3) return "#4a9bd8";  // Medium blue: 3x per month
+                if (timesPerMonth === 2) return "#7bbce8";  // Light blue: Semimonthly
+                if (timesPerMonth === 1) return "#d6c655";  // Mustard: Monthly
             }
             if (daysPerWeek === 0) {
-                if (timesPerMonth >= 4) return "#91bfdb";  // Light blue: 4+ per month
-                if (timesPerMonth === 3) return "#abd9e9";  // Lighter blue: 3x per month
-                if (timesPerMonth === 2) return "#e0f3f8";  // Very light blue: 2x per month
-                if (timesPerMonth === 1) return "#ffffbf";  // Pale yellow: Monthly
+                if (timesPerMonth >= 4) return "#1f78b4";  // Blue: 4+ per month
+                if (timesPerMonth === 3) return "#4a9bd8";  // Medium blue: 3x per month
+                if (timesPerMonth === 2) return "#7bbce8";  // Light blue: 2x per month
+                if (timesPerMonth === 1) return "#d6c655";  // Mustard: Monthly
             }
-            return "#4575b4";  // Dark blue: Less than weekly
+            return "#2d5a9e";  // Dark blue: Less than weekly
         }
 
         function getFrequencyLabel(daysPerWeek, timesPerMonth) {
@@ -645,6 +645,25 @@ LEFT JOIN schedule_details USING (CNN, Corridor, Limits);
 SELECT '
         ;
 
+        var segmentLayer = L.featureGroup().addTo(map);
+
+        function weightForZoom(zoom) {
+            if (zoom >= 17) return 8;
+            if (zoom >= 15) return 5;
+            if (zoom >= 13) return 4;
+            if (zoom >= 11) return 3;
+            return 2;
+        }
+
+        function updateSegmentWeights() {
+            var weight = weightForZoom(map.getZoom());
+            segmentLayer.eachLayer(function(layer) {
+                if (layer.setStyle) {
+                    layer.setStyle({weight: weight});
+                }
+            });
+        }
+
         segments.forEach(function(feature) {
             if (!feature.geometry || !feature.geometry.coordinates || feature.geometry.coordinates.length === 0) {
                 return;
@@ -688,10 +707,12 @@ SELECT '
 
             L.polyline(coords, {
                 color: color,
-                weight: 3,
+                weight: weightForZoom(map.getZoom()),
                 opacity: 0.7
-            }).bindPopup(popup).addTo(map);
+            }).bindPopup(popup).addTo(segmentLayer);
         });
+        map.on("zoomend", updateSegmentWeights);
+        updateSegmentWeights();
 
         var legend = L.control({position: "bottomright"});
         legend.onAdd = function(map) {
@@ -702,11 +723,11 @@ SELECT '
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#67001f\"></span>Daily (7x/week)</div>" +
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#d73027\"></span>5-6x per week</div>" +
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#fc8d59\"></span>3-4x per week</div>" +
-                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#fee090\"></span>2x per week</div>" +
-                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#91bfdb\"></span>Weekly (4-5x/month)</div>" +
-                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#abd9e9\"></span>3x per month</div>" +
-                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#e0f3f8\"></span>Semimonthly (2x/month)</div>" +
-                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#ffffbf\"></span>Monthly</div>" +
+                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#a15a00\"></span>2x per week</div>" +
+                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#1f78b4\"></span>Weekly (4-5x/month)</div>" +
+                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#4a9bd8\"></span>3x per month</div>" +
+                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#7bbce8\"></span>Semimonthly (2x/month)</div>" +
+                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#d6c655\"></span>Monthly</div>" +
                 "</div></details>";
             return div;
         };
