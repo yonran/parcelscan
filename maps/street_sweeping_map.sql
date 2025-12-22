@@ -203,7 +203,7 @@ SELECT '<!DOCTYPE html>
                 // One day per week - check monthly frequency
                 if (timesPerMonth >= 4) return "#91bfdb";  // Light blue: Weekly (4-5x/month)
                 if (timesPerMonth === 3) return "#abd9e9";  // Lighter blue: 3x per month
-                if (timesPerMonth === 2) return "#e0f3f8";  // Very light blue: Biweekly
+                if (timesPerMonth === 2) return "#e0f3f8";  // Very light blue: Semimonthly
                 if (timesPerMonth === 1) return "#ffffbf";  // Pale yellow: Monthly
             }
             if (daysPerWeek === 0) {
@@ -226,7 +226,7 @@ SELECT '<!DOCTYPE html>
                 // One day per week - specify monthly frequency
                 if (timesPerMonth >= 4) return "Weekly (" + timesPerMonth + "x/month)";
                 if (timesPerMonth === 3) return "3x per month";
-                if (timesPerMonth === 2) return "Biweekly (2x/month)";
+                if (timesPerMonth === 2) return "Semimonthly (2x/month)";
                 if (timesPerMonth === 1) return "Monthly";
             }
             if (daysPerWeek === 0) {
@@ -705,7 +705,7 @@ SELECT '
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#fee090\"></span>2x per week</div>" +
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#91bfdb\"></span>Weekly (4-5x/month)</div>" +
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#abd9e9\"></span>3x per month</div>" +
-                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#e0f3f8\"></span>Biweekly (2x/month)</div>" +
+                "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#e0f3f8\"></span>Semimonthly (2x/month)</div>" +
                 "<div class=\"legend-item\"><span class=\"legend-color\" style=\"background:#ffffbf\"></span>Monthly</div>" +
                 "</div></details>";
             return div;
