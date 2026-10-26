@@ -82,7 +82,7 @@ jobs:
         env:
           SOCRATA_API_KEY_ID: ${{ secrets.SOCRATA_API_KEY_ID }}
           SOCRATA_API_KEY_SECRET: ${{ secrets.SOCRATA_API_KEY_SECRET }}
-          FORCE: ${{ inputs.force == 'true' }}
+          FORCE: ${{ inputs.force == true }}
         run: |
           set -eux
 
