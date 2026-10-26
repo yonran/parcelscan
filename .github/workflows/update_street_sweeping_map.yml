@@ -47,6 +47,9 @@ jobs:
       - name: configure git to use GIT_PASSWORD
         run: |
           set -eux
+          # container runs as root but the workspace is owned by the runner user
+          # fatal: detected dubious ownership in repository at '/__w/parcelscan/parcelscan'
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global credential.https://github.com.helper '!f(){ test "$1" = get && printf "username=x-access-token\npassword=%s\n" "$GIT_PASSWORD"; }; f'
           git config --global --add url.https://github.com/.insteadOf ssh://git@github.com/
           # github.repositoryUrl points to git:// even though that would never work since this is a private repo
@@ -116,9 +119,6 @@ jobs:
           rows_updated_at="${{ steps.download.outputs.rows_updated_at }}"
           rows_updated_at_date=$(TZ=America/Los_Angeles date -d "@$rows_updated_at" +%Y-%m-%d)
 
-          # need to add safe.directory
-          # fatal: detected dubious ownership in repository at '/__w/parcelscan/parcelscan'
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git worktree add -B gh-pages /tmp/gh-pages origin/gh-pages
           cp street_sweeping_map.html /tmp/gh-pages/
 

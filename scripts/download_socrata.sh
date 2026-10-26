@@ -44,7 +44,7 @@ fi
 
 mkdir -p data
 curl --no-progress-meter --fail --user "$SOCRATA_API_KEY_ID:$SOCRATA_API_KEY_SECRET" \
-  "https://data.sfgov.org/api/views/$id.json" \
+  "https://data.sf.gov/api/views/$id.json" \
   --output "data/$id-meta.json"
 
 rows_updated_at=$(jq -r '.rowsUpdatedAt // empty' "data/$id-meta.json")
@@ -62,7 +62,7 @@ fi
 
 
 curl --no-progress-meter --fail --user "$SOCRATA_API_KEY_ID:$SOCRATA_API_KEY_SECRET" \
-  "https://data.sfgov.org/api/v3/views/$id/export.csv" \
+  "https://data.sf.gov/api/v3/views/$id/export.csv" \
   --output "data/$id.csv"
 
 echo "did_update=true"
